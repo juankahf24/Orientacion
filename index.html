@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MILITOPO · Orientación V1</title>
+  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="assets/js/qr-offline.js"></script>
+</head>
+<body>
+<div class="app">
+<header class="hero"><div class="hero-inner"><div class="logo">🧭</div><div><h1>MILITOPO · ORIENTACIÓN</h1><p>Sistema offline para generar recorridos, planos individuales y control por QR.</p><div class="mode-pill">✅ Versión 1 offline · preparada internamente para futura sincronización</div></div></div></header>
+<nav class="steps"><button class="step-tab active" data-step="1">PASO 1 · CONFIGURAR</button><button class="step-tab" data-step="2">PASO 2 · BALIZAS Y MAPA</button><button class="step-tab" data-step="3">PASO 3 · RECORRIDOS</button><button class="step-tab" data-step="4">PASO 4 · MATERIAL QR</button><button class="step-tab" data-step="5">PASO 5 · 🚦 SECUENCIA</button><button class="step-tab" data-step="6">PASO 6 · RESULTADOS</button></nav>
+<section class="card active" id="step1"><div class="card-header"><h2>⚙️ CONFIGURAR PRUEBA</h2></div><div class="grid two"><div class="block"><label>Nombre de la prueba</label><input id="eventName" value="ENTRENAMIENTO ORIENTACIÓN"/><div class="help">Se usa para identificar el evento y para el ZIP.</div>
+<div class="grid-2">
+<div>
+<label>Escala del plano</label>
+<select id="planScaleSelect" onchange="updatePlanScaleSetting()">
+<option value="10000">1:10.000</option>
+<option value="7500">1:7.500</option>
+</select>
+<div class="help">Se aplica a todos los planos imprimibles.</div>
+</div>
+<div>
+<label>Equidistancia del plano</label>
+<input id="planEquidistanceInput" min="1" onchange="updatePlanScaleSetting()" step="0.5" type="number" value="5"/>
+<div class="help">Por defecto 5 m. Cámbiala solo si el plano real usa otra.</div>
+</div>
+</div>
+</div><div class="block"><label>Identificador interno</label><input id="eventId" readonly=""/><div class="help">Preparado para una futura sincronización, sin mostrar nada en vivo.</div></div><div class="block"><label>Participantes / recorridos</label><select id="participantCount"></select></div><div class="block"><label>Balizas totales</label><select id="controlCount"></select></div><div class="block"><label>Balizas por recorrido</label><select id="controlsPerRoute"></select></div><div class="block"><label>Máximo uso por baliza</label><select id="maxControlReuse"></select><div class="help">Limita que una misma baliza aparezca en demasiados recorridos.</div></div></div><div class="nav-row"><span></span><button class="btn green" onclick="confirmStep1()">CONFIRMAR Y PASAR AL MAPA →</button><button class="btn red" onclick="resetSavedEvent()">🆕 BORRAR EVENTO GUARDADO</button></div></section>
+<section class="card" id="step2"><div class="card-header"><h2>🗺️ EDITAR BALIZAS Y MAPA</h2><div class="mode-pill">Salida · Llegada · Balizas con etiqueta</div></div><div class="grid two"><div class="block"><label>Baliza a editar sobre el plano</label><select id="selectedPoint"></select><div class="btn-row"><button class="btn secondary" onclick="zoomSelectedPoint()">🔎 ZOOM A SELECCIÓN</button><button class="btn" onclick="useMyLocation()">📍 MI UBICACIÓN</button></div></div><div class="block"><label>Buscar zona del mapa</label><div class="map-tools"><input id="searchBox" placeholder="Lugar, dirección o coordenada UTM"/><button class="btn" onclick="searchPlace()">🔍 BUSCAR</button><button class="btn secondary" onclick="fitAllPoints()">🧭 VER TODO</button></div></div></div><div class="block autofill-test-panel"><label>Herramientas rápidas de prueba</label><div class="btn-row"><button class="btn green" onclick="autofillOrientationPoints()">✨ AUTORRELLENAR TODOS LOS PUNTOS</button><button class="btn red" onclick="clearAllOrientationPoints()">🧹 LIMPIAR TODOS LOS PUNTOS</button></div><div class="help">Solo para pruebas: rellena salida, llegada y balizas alrededor de una zona base para generar recorridos rápidamente.</div></div><div class="layer-pills"><button class="layer-btn active" data-layer="mapant" onclick="switchLayer('mapant')">🧭 Orientación MAPANT</button><button class="layer-btn" data-layer="ign" onclick="switchLayer('ign')">🗺️ Topográfico IGN</button><button class="layer-btn" data-layer="pnoa" onclick="switchLayer('pnoa')">🛰️ Aérea PNOA</button></div><div id="map"></div><div class="grid two" style="margin-top:16px"><div class="block"><label>Coordenada UTM de la selección</label><input id="selectedUtm" placeholder="30T 451520 4780100"/><div class="btn-row"><button class="btn green" onclick="saveSelectedPoint()">💾 GUARDAR PUNTO</button><button class="btn red" onclick="clearSelectedPoint()">🧹 LIMPIAR PUNTO</button></div></div><div class="block"><label>Importar coordenadas</label><textarea id="importText" placeholder="CSV o texto: ID,UTM
+B01,30T 451520 4780100
+B02,30T 451700 4780200" rows="6"></textarea><div class="btn-row"><button class="btn" onclick="importTextPoints()">📥 IMPORTAR TEXTO / EXCEL CSV</button><button class="btn secondary" onclick="exportPointsCsv()">📤 EXPORTAR CSV</button><button class="btn green" onclick="document.getElementById('atakGpxFile').click()">📡 IMPORTAR GPX ATAK POR ID</button></div><input id="atakGpxFile" onchange="importAtakGpxById(event)" style="display:none" type="file"/><input accept=".gpx,.kml,.xml,.txt" id="gpxFile" onchange="importGpxKmlFile(event)" style="margin-top:12px" type="file"/><div class="help">ATAK GPX: el nombre/descripción del waypoint debe ser START, FINISH o B01, B02, etc. Solo actualiza el punto cuyo ID coincida.</div></div></div><div class="block" style="margin-top:16px"><label>Tabla editable de salida, llegada y balizas</label><div class="table-wrap points-table-wrap"><table class="points-base-table"><thead><tr><th>ID</th><th>Tipo</th><th>Coordenada UTM</th><th>Estado</th></tr></thead><tbody id="pointsTable"></tbody></table></div></div>
+<div class="block" id="iofDescriptionsBlock" style="margin-top:16px">
+<h3>📋 DESCRIPCIONES DE CONTROL · IOF</h3>
+<div class="help">Rellena aquí la descripción profesional de cada baliza antes de generar el ZIP. Las columnas A-H siguen la estructura de orientación: A número de control, B código, C cuál de objetos similares, D elemento, E aspecto, F dimensión/combinación, G situación exacta de la baliza y H información extra.</div>
+<div class="iof-compact-wrap">
+<div class="iof-status-line">
+<div class="iof-status-pill warn" id="iofCompactSummary">Descripciones pendientes.</div>
+<div class="iof-status-pill warn" id="iofCurrentStatus">Baliza pendiente</div>
+</div>
+<div class="iof-select-line">
+<div>
+<label>Baliza a editar</label>
+<select id="iofPointSelector" onchange="selectIofPoint(this.value)"></select>
+</div>
+<div class="iof-nav-buttons">
+<button class="btn secondary" onclick="moveIofPoint(-1)">← ANTERIOR</button>
+<button class="btn secondary" onclick="moveIofPoint(1)">SIGUIENTE →</button>
+</div>
+</div>
+<div class="iof-current-card">
+<div class="iof-current-title">
+<h4 id="iofCurrentTitle">START</h4>
+<span id="iofCurrentKind">Salida</span>
+</div>
+<div class="iof-editor-grid" id="iofDescriptionsEditor"></div>
+</div>
+<div class="iof-complete-toggle">
+<button class="btn green" onclick="markCurrentIofComplete()">✅ MARCAR BALIZA COMO COMPLETA</button>
+<button class="btn secondary" onclick="markCurrentIofPending()">↩️ MARCAR COMO PENDIENTE</button>
+</div>
+<div class="iof-quick-buttons">
+<button class="btn green" onclick="autofillOfficialIofDescriptions()">🎲 AUTORRELLENAR OFICIAL</button>
+<button class="btn red" onclick="clearIofDescriptions()">🧹 LIMPIAR DESCRIPCIONES IOF</button><button class="btn secondary" onclick="exportFullIofCHBackup()">💾 EXPORTAR BACKUP SÍMBOLOS C-H</button>
+</div>
+<div class="status warn" id="iofValidationStatus">Rellena las descripciones antes de generar el material.</div>
+</div>
+</div>
+<div class="nav-row"><button class="btn secondary" onclick="goStep(1)">← ANTERIOR</button><button class="btn green" onclick="confirmStep2()">GENERAR RECORRIDOS →</button></div></section>
+<section class="card" id="step3"><div class="card-header"><h2>🏃 GENERAR RECORRIDOS</h2><button class="btn" onclick="generateRoutes()">✨ GENERAR / REGENERAR</button></div><div class="grid one"><div class="block"><label>Recorridos</label><div class="status" id="routeCountInfo">--</div></div></div><div class="status warn" id="routeSummary">Todavía no hay recorridos generados.</div>
+<div class="block" id="step3MapPanel" style="display:none;margin-top:14px;">
+<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px;">
+<div>
+<div style="color:#cbb894;font-size:.72rem;font-weight:900;letter-spacing:1px;">🗺️ PLANO DEL RECORRIDO SELECCIONADO</div>
+<h3 id="step3MapTitle" style="margin:4px 0 0;color:#f0c16a;">Recorrido</h3>
+</div>
+<button class="btn secondary" onclick="hideStep3Map()" type="button">OCULTAR PLANO</button>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+<button class="btn secondary" onclick="switchStep3MapLayer('mapant')" type="button">🧭 MAPANT</button>
+<button class="btn secondary" onclick="switchStep3MapLayer('ign')" type="button">🗺️ IGN</button>
+<button class="btn secondary" onclick="switchStep3MapLayer('pnoa')" type="button">🛰️ PNOA</button>
+</div>
+<div id="step3RouteMap" style="width:100%;height:min(58vh,560px);min-height:380px;border-radius:22px;overflow:hidden;border:2px solid rgba(230,188,122,.42);background:#d9d1b8;"></div>
+</div><div class="grid two" id="routesGrid" style="margin-top:16px"></div><div class="nav-row"><button class="btn secondary" onclick="goStep(2)">← ANTERIOR</button><button class="btn green" onclick="confirmStep3()">GENERAR MATERIAL →</button></div></section>
+<section class="card" id="step4"><div class="card-header"><h2>📦 MATERIAL · PLANOS · QR</h2><button class="btn green" onclick="verifyAndGenerateZip()">✨ GENERAR ZIP</button></div><div class="grid one"><div class="block"><label>El ZIP incluirá</label><div class="status ok">Planos HTML por participante, QR de participantes, QR de balizas, JSON del evento, CSV de recorridos y registro base offline.</div></div></div>
+<div class="block" id="exerciseVerifierBlock" style="margin-top:16px;">
+<h3>✅ VERIFICADOR DEL EJERCICIO</h3>
+<div class="help">Revisa automáticamente si el ejercicio está listo antes de generar el ZIP: puntos, UTM, descripciones IOF, recorridos, QR, planos y app participante.</div>
+<div class="verify-actions">
+<button class="btn green" onclick="runExerciseVerifier(true)">🔍 VERIFICAR TODO</button>
+<button class="btn secondary" onclick="downloadVerificationReport()">📄 EXPORTAR INFORME</button>
+<button class="btn" onclick="verifyAndGenerateZip()">📦 VERIFICAR Y GENERAR ZIP</button>
+</div>
+<div class="status warn" id="exerciseVerifierSummary" style="margin-top:12px;">Todavía no se ha verificado el ejercicio.</div>
+<div class="verify-grid" id="exerciseVerifierResults"></div>
+</div>
+<div class="status warn" id="zipStatus">Genera primero los recorridos y después el material.</div><div class="nav-row"><button class="btn secondary" onclick="goStep(3)">← ANTERIOR</button><button class="btn green" onclick="goStep(5)">SECUENCIA SALIDA/LLEGADA →</button></div></section>
+<section class="card" id="step5">
+<div class="card-header">
+<h2>🚦 SECUENCIA SALIDA / LLEGADA</h2>
+<div class="mode-pill">Organizador · QR participante · salida · llegada</div>
+</div>
+<div class="block" id="organizerQrSequenceBlock" style="margin-top:16px;">
+<h3>🚦 SECUENCIA DE SALIDA Y LLEGADA</h3>
+<div class="help">Uso del organizador: enseña primero el QR del participante para cargar su recorrido, después el QR de salida para empezar. Al terminar, selecciona el participante y enseña llegada.</div>
+<div class="organizer-flow-grid">
+<div class="block">
+<label>Salida organizada</label>
+<select id="startFlowParticipantSelect" onchange="setStartFlowParticipantFromSelect()"></select>
+<div class="organizer-step-buttons">
+<button class="btn green" onclick="prepareStartFlow()">🧭 PREPARAR</button>
+<button class="btn" onclick="showParticipantQrForStart()">1️⃣ QR PARTICIPANTE</button>
+<button class="btn" onclick="showStartQrForParticipant()">2️⃣ QR SALIDA</button>
+</div>
+<button class="btn secondary" onclick="nextStartFlowParticipant()" style="margin-top:10px;width:100%;">SIGUIENTE PARTICIPANTE →</button>
+<div class="status warn" id="startFlowInfo" style="margin-top:10px;">Genera recorridos y pulsa preparar.</div>
+<div class="organizer-qr-box" id="organizerStartQrBox">QR pendiente</div>
+<div class="organizer-payload" id="organizerStartPayload"></div>
+</div>
+<div class="block">
+<label>Llegada organizada</label>
+<select id="finishFlowParticipantSelect" onchange="renderFinishFlowQr()"></select>
+<div class="organizer-step-buttons" style="grid-template-columns:1fr;">
+<button class="btn red" onclick="renderFinishFlowQr()">🏁 QR LLEGADA</button>
+</div>
+<div class="status warn" id="finishFlowInfo" style="margin-top:10px;">Selecciona participante y enseña el QR de llegada.</div>
+<div class="organizer-qr-box" id="organizerFinishQrBox">QR pendiente</div>
+<div class="organizer-payload" id="organizerFinishPayload"></div>
+</div>
+</div>
+</div>
+<div class="nav-row">
+<button class="btn secondary" onclick="goStep(4)">← VERIFICACIÓN Y ZIP</button>
+<button class="btn green" onclick="goStep(6)">RESULTADOS →</button>
+</div>
+</section>
+<section class="card" id="step6">
+<div class="card-header">
+<h2>🏁 RESULTADOS Y CONTROL</h2>
+<div class="mode-pill">Clasificación · importación · revisión · exportación</div>
+</div>
+<div class="block">
+<label>Resumen del evento</label>
+<div class="status warn" id="resultsControlSummary">Genera recorridos e importa resultados para ver el resumen.</div>
+<div class="grid two" style="margin-top:12px;">
+<div class="metric-card"><small>Participantes</small><strong id="resTotalParticipants">--</strong></div>
+<div class="metric-card"><small>Resultados importados</small><strong id="resImportedCount">--</strong></div>
+<div class="metric-card"><small>Finalizados OK</small><strong id="resCompletedCount">--</strong></div>
+<div class="metric-card"><small>Con avisos</small><strong id="resWarningCount">--</strong></div>
+</div>
+</div>
+<div class="block">
+<label>Importar QR final de participante</label>
+<div class="help">Cuando el participante escanee LLEGADA, su móvil mostrará un QR final. Escanéalo aquí o pega el texto del resultado.</div>
+<textarea id="step5ResultImportInput" placeholder="ORI|RESULT|EVENTO|P01|..." style="min-height:120px;"></textarea>
+<div class="btn-row">
+<button class="btn green" onclick="startStep5ResultQrCamera()">📷 ESCANEAR QR RESULTADO</button>
+<button class="btn" onclick="importStep5ResultFromInput()">📥 IMPORTAR MANUAL</button>
+<button class="btn secondary" onclick="downloadImportedResultsCsv()">📊 EXPORTAR CSV</button>
+<button class="btn red" onclick="clearImportedResults()">🧹 LIMPIAR RESULTADOS</button>
+</div>
+<div class="block" id="step5ResultQrCameraPanel" style="display:none;margin-top:12px;">
+<label>LECTOR QR RESULTADO</label>
+<video id="step5ResultQrVideo" muted="" playsinline="" style="width:100%;max-height:380px;border-radius:18px;background:#111;object-fit:cover;"></video>
+<canvas id="step5ResultQrCanvas" style="display:none;"></canvas>
+<div class="status warn" id="step5ResultQrCameraStatus" style="margin-top:10px;">Preparando cámara...</div>
+<div class="btn-row">
+<button class="btn red" onclick="stopStep5ResultQrCamera()">DETENER CÁMARA</button>
+</div>
+</div>
+</div>
+<div class="block">
+<label>Clasificación</label>
+<div class="btn-row" style="margin-bottom:10px;">
+<button class="btn green" onclick="downloadClassificationExcel()">📗 DESCARGAR EXCEL CLASIFICACIÓN</button>
+</div>
+<div class="table-wrap" id="classificationTable"></div>
+</div>
+<div class="block">
+<label>Estado de participantes</label>
+<div class="scan-list" id="participantsStatusGrid"></div>
+</div>
+<div class="block">
+<label>Detalle del resultado seleccionado</label>
+<select id="resultDetailSelect" onchange="renderSelectedResultDetail()"></select>
+<div class="status warn" id="selectedResultDetail">Selecciona un resultado importado.</div>
+</div>
+<div class="block">
+<label>Herramientas de resultados</label>
+<div class="btn-row">
+<button class="btn secondary" onclick="downloadImportedResults()">📤 EXPORTAR JSON COMPLETO</button>
+<button class="btn secondary" onclick="downloadImportedResultsCsv()">📊 EXPORTAR CSV RESUMEN</button>
+<button class="btn secondary" onclick="downloadDetailedSplitsCsv()">⏱️ EXPORTAR PARCIALES CSV</button>
+<button class="btn" onclick="saveState();toast('Resultados guardados')">💾 GUARDAR ESTADO</button>
+</div>
+</div>
+<div class="nav-row">
+<button class="btn secondary" onclick="goStep(5)">← SECUENCIA SALIDA/LLEGADA</button>
+<button class="btn green" onclick="renderResultsControl()">ACTUALIZAR RESULTADOS</button>
+</div>
+</section>
+<div class="status warn" id="restoreDebugStatus" style="display:none;margin:12px 0;"></div><div class="footer-note">MILITOPO · Rama Orientación V1 offline · topografía cerrada</div></div> ROUTE GENERATION LOADER START 
+<div class="route-generation-loader" id="routeGenerationLoader" style="display:none;">
+<div class="route-generation-card">
+<div class="route-generation-icon">🧭</div>
+<div class="route-generation-title">GENERANDO RECORRIDOS</div>
+<div class="route-generation-text" id="routeGenerationText">Preparando cálculo...</div>
+<div class="route-generation-bar">
+<div class="route-generation-fill" id="routeGenerationFill" style="width:0%;"></div>
+</div>
+<div class="route-generation-percent" id="routeGenerationPercent">0%</div>
+</div>
+</div>
+ ROUTE GENERATION LOADER END 
+<div class="toast" id="toast"></div>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
