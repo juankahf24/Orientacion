@@ -734,3 +734,223 @@ input,select,textarea{
 input::placeholder,textarea::placeholder{
   color:rgba(255,247,221,.72)!important;
 }
+
+/* =========================================================
+   MILITOPO · MEJORA VISUAL MOVIL Y CONTRASTE · V1
+   Sustituible sin tocar la lógica de la aplicación.
+   ========================================================= */
+:root{
+  --bg:#0d1509;
+  --panel:#26381a;
+  --panel2:#324a22;
+  --brown:#342719;
+  --gold:#e7b65a;
+  --gold2:#ffd27a;
+  --cream:#fff3d6;
+  --muted:#ead6a9;
+  --green:#86b861;
+  --red:#d76a50;
+  --blue:#64a8ff;
+  --line:rgba(255,215,142,.42);
+  --shadow:0 20px 52px rgba(0,0,0,.38);
+}
+html{
+  -webkit-text-size-adjust:100%;
+  text-size-adjust:100%;
+  background:#0d1509;
+}
+body{
+  background:
+    radial-gradient(circle at 18% -12%,rgba(255,210,122,.18),transparent 32%),
+    radial-gradient(circle at 88% 0%,rgba(80,150,55,.18),transparent 30%),
+    linear-gradient(180deg,#090f07 0%,#18230f 46%,#0d1509 100%);
+  color:var(--cream);
+}
+body:before{
+  opacity:.28;
+}
+.app{
+  padding-left:max(14px,env(safe-area-inset-left));
+  padding-right:max(14px,env(safe-area-inset-right));
+  padding-bottom:max(54px,calc(env(safe-area-inset-bottom) + 42px));
+}
+.hero{
+  border-color:rgba(255,216,145,.42);
+  background:
+    radial-gradient(circle at 20% 0%,rgba(255,210,122,.22),transparent 34%),
+    linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.045));
+  box-shadow:0 24px 58px rgba(0,0,0,.42);
+}
+.hero-inner{
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(0,0,0,.2)),rgba(0,0,0,.18);
+  border-color:rgba(255,216,145,.30);
+}
+.logo{
+  background:radial-gradient(circle at 35% 24%,rgba(255,255,255,.25),transparent 28%),linear-gradient(160deg,#243419,#071006);
+  border-color:rgba(255,216,145,.52);
+}
+h1{
+  color:#f8ffe8;
+  text-shadow:0 3px 0 rgba(0,0,0,.42),0 0 18px rgba(255,210,122,.12);
+}
+.hero p{
+  color:#f4dfad;
+}
+.mode-pill{
+  color:#efffdb;
+  background:rgba(116,170,75,.24);
+  border-color:rgba(159,217,107,.52);
+}
+.steps{
+  background:linear-gradient(180deg,rgba(58,45,31,.94),rgba(39,31,23,.96));
+  border-color:rgba(255,216,145,.36);
+  box-shadow:0 16px 38px rgba(0,0,0,.34);
+}
+.step-tab{
+  color:#fff2d2;
+  opacity:.92;
+  min-height:68px;
+}
+.step-tab.active{
+  color:#1f1508;
+  background:linear-gradient(180deg,#ffd782,#d99938);
+  opacity:1;
+  box-shadow:0 14px 26px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.28);
+}
+.step-tab.done{
+  color:#faffed;
+  background:linear-gradient(180deg,#8fbd68,#5f8f3d);
+  opacity:1;
+}
+.card{
+  background:
+    radial-gradient(circle at 88% 8%,rgba(255,210,122,.16),transparent 27%),
+    linear-gradient(180deg,rgba(255,255,255,.105),rgba(255,255,255,.04)),
+    #26381a;
+  border-color:rgba(255,216,145,.40);
+  box-shadow:0 22px 54px rgba(0,0,0,.42);
+}
+.card-header{
+  border-bottom-color:rgba(255,210,122,.88);
+}
+h2{
+  color:#ffd782;
+  text-shadow:0 2px 0 rgba(0,0,0,.42);
+}
+.block,.route-card,.participant-card,.participant-shell{
+  background:
+    radial-gradient(circle at top left,rgba(255,210,122,.16),transparent 31%),
+    linear-gradient(180deg,rgba(255,255,255,.08),rgba(0,0,0,.08));
+  border-color:rgba(255,216,145,.32);
+  box-shadow:0 14px 28px rgba(0,0,0,.22);
+}
+label{
+  color:#fff5d8;
+}
+input,select,textarea{
+  background:linear-gradient(180deg,#5b3d23,#2f2318);
+  color:#fff5d8;
+  border-color:rgba(255,216,145,.62);
+  box-shadow:inset 0 0 0 1px rgba(255,238,190,.10),0 10px 22px rgba(0,0,0,.18);
+}
+input::placeholder,textarea::placeholder{
+  color:rgba(255,243,214,.62);
+}
+input:focus,select:focus,textarea:focus{
+  border-color:#ffe0a0;
+  box-shadow:inset 0 0 0 1px rgba(255,238,190,.22),0 0 0 5px rgba(255,201,104,.20);
+}
+.help,.footer-note{
+  color:#ead6a9;
+}
+.btn{
+  background:linear-gradient(180deg,#ffd782,#d99938);
+  color:#201408;
+  box-shadow:0 14px 26px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.30);
+}
+.btn.secondary,.layer-btn{
+  background:linear-gradient(180deg,#684527,#302216);
+  color:#fff3d6;
+}
+.btn.green{
+  background:linear-gradient(180deg,#92c56a,#5c8a38);
+}
+.btn.red{
+  background:linear-gradient(180deg,#d76a50,#973a28);
+}
+.status{
+  background:rgba(0,0,0,.24);
+  border-color:rgba(255,216,145,.34);
+  color:#fff3d6;
+}
+.status.ok{
+  background:rgba(116,170,75,.21);
+  border-color:rgba(159,217,107,.62);
+}
+.status.warn{
+  background:rgba(255,199,91,.15);
+  border-color:rgba(255,216,145,.66);
+}
+.status.err{
+  background:rgba(215,106,80,.18);
+  border-color:rgba(215,106,80,.68);
+}
+.table-wrap{
+  background:rgba(0,0,0,.22);
+  border-color:rgba(255,216,145,.30);
+}
+th{
+  background:#2f2318;
+  color:#ffd782;
+}
+th,td{
+  border-bottom-color:rgba(255,216,145,.24);
+}
+.metric{
+  background:rgba(0,0,0,.18);
+  border-color:rgba(255,216,145,.20);
+}
+.metric small{
+  color:#ead6a9;
+}
+.metric b,.route-title{
+  color:#ffd782;
+}
+.layer-btn.active{
+  background:linear-gradient(180deg,#ffd782,#d99938);
+  color:#1f1508;
+}
+.qr-card{
+  background:#fffaf0;
+  color:#161616;
+  box-shadow:0 12px 26px rgba(0,0,0,.18);
+}
+.toast{
+  background:rgba(19,28,14,.98);
+  border-color:rgba(255,216,145,.50);
+  box-shadow:0 18px 44px rgba(0,0,0,.48);
+}
+@media(max-width:760px){
+  .app{padding-top:12px}
+  .hero{border-radius:24px;padding:12px;margin-bottom:14px}
+  .hero-inner{border-radius:20px;padding:14px}
+  .logo{width:70px;height:70px;font-size:2rem}
+  .mode-pill{font-size:.76rem;line-height:1.25;justify-content:center;text-align:center}
+  .steps{gap:7px;padding:8px;border-radius:22px;margin:14px 0}
+  .step-tab{min-height:64px;padding:9px 6px;font-size:.75rem;line-height:1.22}
+  .card{border-radius:24px;padding:16px;margin-bottom:15px}
+  .card-header{gap:10px;margin-bottom:16px}
+  .block{border-radius:20px;padding:14px}
+  input,select,textarea{min-height:52px;font-size:16px}
+  #map{min-height:420px;height:min(66vh,590px)}
+  .metric-grid{grid-template-columns:1fr 1fr;gap:7px}
+  .scan-item{grid-template-columns:62px 1fr;gap:7px}
+  .scan-item > :last-child{grid-column:1/-1}
+}
+@media(max-width:420px){
+  .step-tab{font-size:.68rem;letter-spacing:.55px;min-height:60px}
+  .hero p{font-size:.9rem}
+  .mode-pill{font-size:.72rem}
+  h2{font-size:1.25rem}
+  #map{min-height:390px}
+}
