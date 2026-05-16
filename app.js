@@ -2443,17 +2443,15 @@ function safePointFilename(id){
 
 function controlQrPrintCss(){
     return `
-@page{size:A4 portrait;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#e9e4d5;color:#111;font-family:"Arial Black",Arial,Helvetica,sans-serif}.print-sheet{width:210mm;height:297mm;margin:0 auto;background:#fffdf5;display:flex;flex-direction:column;border:0;page-break-after:always;overflow:hidden}.print-head{height:55mm;background:linear-gradient(180deg,#18230f,#2f441e);color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:8mm 10mm;border-bottom:5mm solid #e5ae4f}.print-head .label{font-size:12pt;letter-spacing:2.4pt;font-weight:900;color:#ffe2a0;margin-bottom:2mm}.print-head .id{font-size:68pt;line-height:.92;letter-spacing:3pt;font-weight:900;text-shadow:0 2mm 0 rgba(0,0,0,.25)}.print-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:9mm 12mm 8mm}.qr-frame{width:142mm;height:142mm;border:2.4mm solid #111;border-radius:8mm;background:#fff;display:flex;align-items:center;justify-content:center;padding:7mm;margin-top:4mm}.qr-frame img{width:126mm;height:126mm;object-fit:contain;image-rendering:pixelated}.mini-id{margin-top:7mm;font-size:42pt;line-height:1;font-weight:900;letter-spacing:2pt;color:#18230f}.desc{margin-top:3mm;min-height:12mm;text-align:center;font-size:13pt;font-family:Arial,Helvetica,sans-serif;font-weight:800;color:#3b2b18;max-width:175mm}.meta{margin-top:auto;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:3mm;font-family:"Courier New",monospace;font-size:9pt;font-weight:900;color:#111}.meta div{border:1px solid #111;border-radius:2mm;padding:2mm 2.5mm;background:#f7efd8;min-height:11mm}.payload{grid-column:1/3;word-break:break-all;font-size:7.5pt;background:#f2f2f2!important}.brand{font-family:"Courier New",monospace;font-size:8pt;color:#5f481f;text-align:center;margin-top:3mm;font-weight:900}@media print{body{background:#fff}.print-sheet{margin:0;box-shadow:none}.no-print{display:none!important}}`;
+@page{size:A4 portrait;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111;font-family:"Arial Black",Arial,Helvetica,sans-serif}.print-sheet{width:210mm;height:297mm;margin:0 auto;background:#fffdf5;display:flex;flex-direction:column;border:0;page-break-after:always;overflow:hidden}.print-head{height:64mm;background:linear-gradient(180deg,#111a0b,#2f441e);color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:8mm 10mm;border-bottom:6mm solid #e5ae4f}.print-head .label{font-size:13pt;letter-spacing:2.6pt;font-weight:900;color:#ffe2a0;margin-bottom:3mm;text-transform:uppercase}.print-head .id{font-size:78pt;line-height:.9;letter-spacing:3pt;font-weight:900;text-shadow:0 2mm 0 rgba(0,0,0,.28)}.print-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10mm 12mm 16mm}.qr-frame{width:154mm;height:154mm;border:2.8mm solid #111;border-radius:8mm;background:#fff;display:flex;align-items:center;justify-content:center;padding:7mm}.qr-frame img{width:137mm;height:137mm;object-fit:contain;image-rendering:pixelated}.mini-id{margin-top:10mm;font-size:44pt;line-height:1;font-weight:900;letter-spacing:2pt;color:#18230f;text-align:center}.desc{margin-top:4mm;text-align:center;font-size:15pt;font-family:Arial,Helvetica,sans-serif;font-weight:900;color:#3b2b18;max-width:175mm}.meta,.brand,.payload{display:none!important}@media print{body{background:#fff}.print-sheet{margin:0;box-shadow:none}.no-print{display:none!important}}`;
 }
 
 function printableControlQrPageHtml(point,payload,qrDataUrl){
     const id=String(point?.id||"").toUpperCase();
     const title=pointQrPrintTitle(point);
     const desc=point?.desc?String(point.desc):"";
-    const type=point?.type||"PUNTO";
-    const utm=point?.utm||"";
     const qrImg=qrDataUrl||"";
-    return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${escapeHtml(title)} · QR imprimible</title><style>${controlQrPrintCss()}</style></head><body><div class="print-sheet"><header class="print-head"><div><div class="label">ID DEL PUNTO</div><div class="id">${escapeHtml(id)}</div></div></header><main class="print-body"><div class="qr-frame"><img src="${escapeHtml(qrImg)}" alt="QR ${escapeHtml(id)}"></div><div class="mini-id">${escapeHtml(title)}</div><div class="desc">${escapeHtml(desc||"Escanear este QR en el punto correspondiente.")}</div><section class="meta"><div><b>EVENTO</b><br>${escapeHtml(state.eventId||"")}</div><div><b>TIPO</b><br>${escapeHtml(type)}</div><div><b>UTM</b><br>${escapeHtml(utm||"—")}</div><div><b>APP</b><br>MILITOPO · ORIENTACIÓN</div><div class="payload"><b>PAYLOAD</b><br>${escapeHtml(payload)}</div></section><div class="brand">Imprimir una hoja por punto · el ID superior debe coincidir con la baliza física</div></main></div></body></html>`;
+    return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${escapeHtml(title)} · QR imprimible</title><style>${controlQrPrintCss()}</style></head><body><div class="print-sheet"><header class="print-head"><div><div class="label">ID DEL PUNTO</div><div class="id">${escapeHtml(id)}</div></div></header><main class="print-body"><div class="qr-frame"><img src="${escapeHtml(qrImg)}" alt="QR ${escapeHtml(id)}"></div><div class="mini-id">${escapeHtml(title)}</div>${desc?`<div class="desc">${escapeHtml(desc)}</div>`:""}</main></div></body></html>`;
 }
 
 function printableAllControlQrsHtml(items){
@@ -2462,18 +2460,15 @@ function printableAllControlQrsHtml(items){
         const id=String(point.id||"").toUpperCase();
         const title=pointQrPrintTitle(point);
         const desc=point.desc?String(point.desc):"";
-        const type=point.type||"PUNTO";
-        const utm=point.utm||"";
-        return `<div class="print-sheet"><header class="print-head"><div><div class="label">ID DEL PUNTO</div><div class="id">${escapeHtml(id)}</div></div></header><main class="print-body"><div class="qr-frame"><img src="${escapeHtml(item.qrDataUrl||"")}" alt="QR ${escapeHtml(id)}"></div><div class="mini-id">${escapeHtml(title)}</div><div class="desc">${escapeHtml(desc||"Escanear este QR en el punto correspondiente.")}</div><section class="meta"><div><b>EVENTO</b><br>${escapeHtml(state.eventId||"")}</div><div><b>TIPO</b><br>${escapeHtml(type)}</div><div><b>UTM</b><br>${escapeHtml(utm||"—")}</div><div><b>APP</b><br>MILITOPO · ORIENTACIÓN</div><div class="payload"><b>PAYLOAD</b><br>${escapeHtml(item.payload||"")}</div></section><div class="brand">Imprimir una hoja por punto · el ID superior debe coincidir con la baliza física</div></main></div>`;
+        return `<div class="print-sheet"><header class="print-head"><div><div class="label">ID DEL PUNTO</div><div class="id">${escapeHtml(id)}</div></div></header><main class="print-body"><div class="qr-frame"><img src="${escapeHtml(item.qrDataUrl||"")}" alt="QR ${escapeHtml(id)}"></div><div class="mini-id">${escapeHtml(title)}</div>${desc?`<div class="desc">${escapeHtml(desc)}</div>`:""}</main></div>`;
     }).join("\n");
-    return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>QR imprimibles · balizas</title><style>${controlQrPrintCss()}</style></head><body>${sheets}</body></html>`;
+    return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>QR imprimibles · salida, balizas y llegada</title><style>${controlQrPrintCss()}</style></head><body>${sheets}</body></html>`;
 }
 
+
 async function addPrintableControlQrToZip(controlsFolder,point,payload){
-    const printableFolder=controlsFolder.folder("IMPRIMIBLES_INDIVIDUALES_A4");
+    // Solo prepara la hoja para el archivo general. No crea un HTML por cada punto.
     const qrDataUrl=await qrDataUrlForPrint(payload,900);
-    const id=safePointFilename(point?.id);
-    printableFolder.file(`IMPRIMIR_${id}.html`,printableControlQrPageHtml(point,payload,qrDataUrl));
     return {point,payload,qrDataUrl};
 }
 
@@ -3168,12 +3163,22 @@ async function generateZip(verificationFromButton=null){ensureZipProgressUi();up
         }
 
         const allPoints=Object.values(state.points||{})
-            .filter(p=>p&&p.id&&(p.type==="START"||p.type==="FINISH"||p.type==="BALIZA"))
+            .filter(p=>{
+                if(!p||!p.id)return false;
+                const id=String(p.id).toUpperCase();
+                const type=String(p.type||"").toUpperCase();
+                return id==="START"||id==="FINISH"||type==="SALIDA"||type==="LLEGADA"||type==="START"||type==="FINISH"||type==="BALIZA";
+            })
             .sort((a,b)=>{
-                const order={START:0,BALIZA:1,FINISH:2};
-                const ta=order[a.type]??9;
-                const tb=order[b.type]??9;
-                if(ta!==tb)return ta-tb;
+                const group=p=>{
+                    const id=String(p.id||"").toUpperCase();
+                    const type=String(p.type||"").toUpperCase();
+                    if(id==="START"||type==="SALIDA"||type==="START")return 0;
+                    if(id==="FINISH"||type==="LLEGADA"||type==="FINISH")return 2;
+                    return 1;
+                };
+                const ga=group(a),gb=group(b);
+                if(ga!==gb)return ga-gb;
                 return String(a.id).localeCompare(String(b.id),"es",{numeric:true});
             });
 
