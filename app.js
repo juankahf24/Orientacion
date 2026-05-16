@@ -2441,26 +2441,48 @@ function safePointFilename(id){
     return String(id||"PUNTO").toUpperCase().replace(/[^A-Z0-9_-]+/g,"_");
 }
 
+function pointPrintEventLabel(){
+    const name=String(state.eventName||"").trim();
+    const id=String(state.eventId||"").trim();
+    if(name && id && name!==id)return `${name}<br><small>${id}</small>`;
+    return name||id||"—";
+}
+
+function pointLatLonMeta(point){
+    const lat=Number(point?.lat);
+    const lon=Number(point?.lon);
+    if(Number.isFinite(lat)&&Number.isFinite(lon))return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+    return "—";
+}
+
 function controlQrPrintCss(){
     return `
-@page{size:A4 portrait;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111;font-family:"Arial Black",Arial,Helvetica,sans-serif}.print-sheet{width:210mm;height:297mm;margin:0 auto;background:#fffdf5;display:flex;flex-direction:column;border:0;page-break-after:always;overflow:hidden}.print-head{height:64mm;background:linear-gradient(180deg,#111a0b,#2f441e);color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:8mm 10mm;border-bottom:6mm solid #e5ae4f}.print-head .label{font-size:13pt;letter-spacing:2.6pt;font-weight:900;color:#ffe2a0;margin-bottom:3mm;text-transform:uppercase}.print-head .id{font-size:78pt;line-height:.9;letter-spacing:3pt;font-weight:900;text-shadow:0 2mm 0 rgba(0,0,0,.28)}.print-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10mm 12mm 16mm}.qr-frame{width:154mm;height:154mm;border:2.8mm solid #111;border-radius:8mm;background:#fff;display:flex;align-items:center;justify-content:center;padding:7mm}.qr-frame img{width:137mm;height:137mm;object-fit:contain;image-rendering:pixelated}.mini-id{margin-top:10mm;font-size:44pt;line-height:1;font-weight:900;letter-spacing:2pt;color:#18230f;text-align:center}.desc{margin-top:4mm;text-align:center;font-size:15pt;font-family:Arial,Helvetica,sans-serif;font-weight:900;color:#3b2b18;max-width:175mm}.meta,.brand,.payload{display:none!important}@media print{body{background:#fff}.print-sheet{margin:0;box-shadow:none}.no-print{display:none!important}}`;
+@page{size:A4 portrait;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#e9e4d5;color:#111;font-family:"Arial Black",Arial,Helvetica,sans-serif}.print-sheet{width:210mm;height:297mm;margin:0 auto;background:#fffdf5;display:flex;flex-direction:column;border:0;page-break-after:always;overflow:hidden}.print-head{height:55mm;background:linear-gradient(180deg,#18230f,#2f441e);color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:8mm 10mm;border-bottom:5mm solid #e5ae4f}.print-head .label{font-size:12pt;letter-spacing:2.4pt;font-weight:900;color:#ffe2a0;margin-bottom:2mm}.print-head .id{font-size:68pt;line-height:.92;letter-spacing:3pt;font-weight:900;text-shadow:0 2mm 0 rgba(0,0,0,.25)}.print-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:9mm 12mm 8mm}.qr-frame{width:142mm;height:142mm;border:2.4mm solid #111;border-radius:8mm;background:#fff;display:flex;align-items:center;justify-content:center;padding:7mm;margin-top:4mm}.qr-frame img{width:126mm;height:126mm;object-fit:contain;image-rendering:pixelated}.mini-id{margin-top:7mm;font-size:42pt;line-height:1;font-weight:900;letter-spacing:2pt;color:#18230f}.desc{margin-top:3mm;min-height:12mm;text-align:center;font-size:13pt;font-family:Arial,Helvetica,sans-serif;font-weight:800;color:#3b2b18;max-width:175mm}.meta{margin-top:auto;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:3mm;font-family:"Courier New",monospace;font-size:8.6pt;font-weight:900;color:#111}.meta div{border:1px solid #111;border-radius:2mm;padding:2mm 2.5mm;background:#f7efd8;min-height:10.5mm}.meta small{font-size:7.2pt;font-weight:900}.payload{grid-column:1/3;word-break:break-all;font-size:7.2pt;background:#f2f2f2!important}.brand{display:none!important}@media print{body{background:#fff}.print-sheet{margin:0;box-shadow:none}.no-print{display:none!important}}`;
 }
 
 function printableControlQrPageHtml(point,payload,qrDataUrl){
     const id=String(point?.id||"").toUpperCase();
     const title=pointQrPrintTitle(point);
     const desc=point?.desc?String(point.desc):"";
+    const type=point?.type||"PUNTO";
+    const utm=point?.utm||"";
     const qrImg=qrDataUrl||"";
-    return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${escapeHtml(title)} · QR imprimible</title><style>${controlQrPrintCss()}</style></head><body><div class="print-sheet"><header class="print-head"><div><div class="label">ID DEL PUNTO</div><div class="id">${escapeHtml(id)}</div></div></header><main class="print-body"><div class="qr-frame"><img src="${escapeHtml(qrImg)}" alt="QR ${escapeHtml(id)}"></div><div class="mini-id">${escapeHtml(title)}</div>${desc?`<div class="desc">${escapeHtml(desc)}</div>`:""}</main></div></body></html>`;
+    const eventLabel=pointPrintEventLabel();
+    const latLon=pointLatLonMeta(point);
+    return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${escapeHtml(title)} · QR imprimible</title><style>${controlQrPrintCss()}</style></head><body><div class="print-sheet"><header class="print-head"><div><div class="label">ID DEL PUNTO</div><div class="id">${escapeHtml(id)}</div></div></header><main class="print-body"><div class="qr-frame"><img src="${escapeHtml(qrImg)}" alt="QR ${escapeHtml(id)}"></div><div class="mini-id">${escapeHtml(title)}</div><div class="desc">${escapeHtml(desc||"Escanear este QR en el punto correspondiente.")}</div><section class="meta"><div><b>EVENTO</b><br>${eventLabel}</div><div><b>TIPO</b><br>${escapeHtml(type)}</div><div><b>UTM</b><br>${escapeHtml(utm||"—")}</div><div><b>COORDENADAS</b><br>${escapeHtml(latLon)}</div><div><b>APP</b><br>MILITOPO · ORIENTACIÓN</div><div><b>ID PUNTO</b><br>${escapeHtml(id)}</div><div class="payload"><b>PAYLOAD</b><br>${escapeHtml(payload)}</div></section></main></div></body></html>`;
 }
 
 function printableAllControlQrsHtml(items){
+    const eventLabel=pointPrintEventLabel();
     const sheets=items.map(item=>{
         const point=item.point||{};
         const id=String(point.id||"").toUpperCase();
         const title=pointQrPrintTitle(point);
         const desc=point.desc?String(point.desc):"";
-        return `<div class="print-sheet"><header class="print-head"><div><div class="label">ID DEL PUNTO</div><div class="id">${escapeHtml(id)}</div></div></header><main class="print-body"><div class="qr-frame"><img src="${escapeHtml(item.qrDataUrl||"")}" alt="QR ${escapeHtml(id)}"></div><div class="mini-id">${escapeHtml(title)}</div>${desc?`<div class="desc">${escapeHtml(desc)}</div>`:""}</main></div>`;
+        const type=point.type||"PUNTO";
+        const utm=point.utm||"";
+        const latLon=pointLatLonMeta(point);
+        return `<div class="print-sheet"><header class="print-head"><div><div class="label">ID DEL PUNTO</div><div class="id">${escapeHtml(id)}</div></div></header><main class="print-body"><div class="qr-frame"><img src="${escapeHtml(item.qrDataUrl||"")}" alt="QR ${escapeHtml(id)}"></div><div class="mini-id">${escapeHtml(title)}</div><div class="desc">${escapeHtml(desc||"Escanear este QR en el punto correspondiente.")}</div><section class="meta"><div><b>EVENTO</b><br>${eventLabel}</div><div><b>TIPO</b><br>${escapeHtml(type)}</div><div><b>UTM</b><br>${escapeHtml(utm||"—")}</div><div><b>COORDENADAS</b><br>${escapeHtml(latLon)}</div><div><b>APP</b><br>MILITOPO · ORIENTACIÓN</div><div><b>ID PUNTO</b><br>${escapeHtml(id)}</div><div class="payload"><b>PAYLOAD</b><br>${escapeHtml(item.payload||"")}</div></section></main></div>`;
     }).join("\n");
     return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>QR imprimibles · salida, balizas y llegada</title><style>${controlQrPrintCss()}</style></head><body>${sheets}</body></html>`;
 }
@@ -4664,7 +4686,7 @@ window.addEventListener("load",init);
 .headerBrandText{color:#fff6dc!important}.headerMascot{background:rgba(255,255,255,.10)!important;border:1px solid rgba(255,255,255,.20)!important}
 .content{background:#f8efd8!important}.map-wrap{border:1.2px solid #2f2a1e!important;background:#ece6cb!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)!important}
 .mapNorthCompass,.realScaleCheck{background:rgba(255,248,231,.96)!important;border-color:#1d170d!important;color:#1d170d!important}.realScaleBar{border-color:#1d170d!important}
-.iof{background:#fff!important;border:2.2px solid #000!important;box-shadow:0 .7mm 2mm rgba(0,0,0,.18)!important;position:relative!important;padding-top:6mm!important}.iof:before{content:"DESCRIPCIÓN IOF";position:absolute;top:0;left:0;right:0;height:6mm;display:flex;align-items:center;justify-content:center;background:#f2f2f2;border-bottom:1.5px solid #000;font-size:8px;font-weight:900;letter-spacing:.45px;color:#000}.iof-head{border-bottom:1.6px solid #000!important}.iof-title{font-size:7.5px!important;font-weight:900!important;background:#fff!important}.iof-difficulty{font-size:7.5px!important;background:#fff!important}.iof-metrics div,.iof-letters div{font-weight:900!important;color:#000!important}.iof-table td{height:14.5px!important;border-color:#000!important;color:#000!important;background:#fff!important}.iof-table .code{font-weight:900!important;color:#000!important}.iof-table svg{width:12.8px!important;height:12.8px!important;color:#000!important;filter:none!important}
+.iof{background:#fff!important;border:2.2px solid #ff3ecf!important;box-shadow:0 .7mm 2mm rgba(0,0,0,.18)!important;position:relative!important;padding-top:6mm!important}.iof:before{content:"DESCRIPCIÓN IOF";position:absolute;top:0;left:0;right:0;height:6mm;display:flex;align-items:center;justify-content:center;background:#f2f2f2;border-bottom:1.5px solid #ff3ecf;font-size:8px;font-weight:900;letter-spacing:.45px;color:#000}.iof-head{border-bottom:1.6px solid #ff3ecf!important}.iof-title{font-size:7.5px!important;font-weight:900!important;background:#fff!important}.iof-difficulty{font-size:7.5px!important;background:#fff!important}.iof-metrics{border-bottom-color:#ff3ecf!important}.iof-letters{border-bottom-color:#ff3ecf!important}.iof-metrics div,.iof-letters div{font-weight:900!important;color:#000!important;border-right-color:#ff3ecf!important}.iof-table td{height:14.5px!important;border-color:#ff3ecf!important;color:#000!important;background:#fff!important}.iof-table .code{font-weight:900!important;color:#000!important}.iof-table svg{width:12.8px!important;height:12.8px!important;color:#ff3ecf!important;filter:none!important}.iof-table svg *{color:#ff3ecf!important;stroke:#ff3ecf!important}.iof-table svg [fill]:not([fill="none"]):not([fill="transparent"]),.iof-table svg .fill,.iof-table svg text,.iof-table svg tspan{fill:#ff3ecf!important}.iof-table svg text,.iof-table svg tspan{stroke:none!important}
 .footer{background:#f8efd8!important;border-top:2px solid #8b6a2f!important;color:#21170b!important}.footer .tech{background:rgba(255,255,255,.52)!important;border:1px solid rgba(95,72,31,.55)!important;border-radius:1.7mm!important;padding:1.3mm 2mm!important;color:#18230f!important;font-size:6.4px!important;line-height:1.18!important}.footer .tech b{font-size:7.2px;color:#18230f!important}.footer .note{color:#2a1d0d!important;font-size:9.2px!important}.footer .note small{display:block;font-size:6.5px;line-height:1.25;margin-top:1mm;color:#5c4218!important}.warn{background:rgba(255,238,196,.86)!important;padding:.7mm 1.2mm!important;border-radius:1mm!important;color:#8a0000!important}
 @media print{.sheet{background:#f8efd8!important}.map-wrap{box-shadow:none!important}.iof{box-shadow:none!important}}
 `;
