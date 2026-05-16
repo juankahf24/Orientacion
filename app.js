@@ -58,6 +58,7 @@ function init(){
     updateRouteCountInfo();
     bindStepTabs();
     bindStrongAutosave();
+    cleanupStep2ImportAndTableUi();
 
     goStep(restoredStep,{silent:true,noScroll:true});
 
@@ -91,9 +92,10 @@ function bindStepTabs(){document.querySelectorAll(".step-tab").forEach(btn=>btn.
     });
 
     if(currentAppStep===2){
+        cleanupStep2ImportAndTableUi();
         renderIofDescriptionsEditor();
         validateIofDescriptions();
-        setTimeout(()=>{if(map)map.invalidateSize();renderMapMarkers()},200);
+        setTimeout(()=>{if(map)map.invalidateSize();renderMapMarkers();cleanupStep2ImportAndTableUi()},200);
     }
     if(currentAppStep===4){runExerciseVerifier(false)}
     if(currentAppStep===5){updateOrganizerParticipantSelects();prepareStartFlow()}
@@ -363,7 +365,35 @@ function pointStatusBadgeHtml(id){
     return `<span class="point-status-badge ${st.ok?"ok":"warn"}">${st.ok?"✅ Completa":"⚠️ Pendiente"}${st.ok?"":": "+escapeHtml(st.missing.join(", "))}</span>`;
 }
 
+
+function cleanupStep2ImportAndTableUi(){
+    const gpxFile=document.getElementById("gpxFile");
+    if(gpxFile){
+        gpxFile.style.display="none";
+        gpxFile.setAttribute("aria-hidden","true");
+        gpxFile.tabIndex=-1;
+    }
+
+    const atakGpxFile=document.getElementById("atakGpxFile");
+    if(atakGpxFile){
+        atakGpxFile.style.display="none";
+        atakGpxFile.setAttribute("aria-hidden","true");
+        atakGpxFile.tabIndex=-1;
+    }
+
+    const table=document.querySelector(".points-base-table");
+    if(table){
+        const headRow=table.querySelector("thead tr");
+        if(headRow){
+            const ths=[...headRow.children];
+            const estadoTh=ths.find(th=>String(th.textContent||"").trim().toUpperCase()==="ESTADO");
+            if(estadoTh)estadoTh.remove();
+        }
+    }
+}
+
 function renderPointsTable(){
+    cleanupStep2ImportAndTableUi();
     const tbody=document.getElementById("pointsTable");
     tbody.innerHTML="";
     Object.values(state.points).forEach(p=>{
@@ -372,8 +402,7 @@ function renderPointsTable(){
         tr.className=st.ok?"point-row-ok":"point-row-warn";
         tr.innerHTML=`<td><b>${p.id}</b><br>${pointStatusBadgeHtml(p.id)}</td>
             <td>${p.type}</td>
-            <td><input class="${st.utmOk?"":"point-input-invalid"}" value="${escapeHtml(p.utm||"")}" data-id="${p.id}" data-field="utm" placeholder="30T 463941 4106198"></td>
-            <td>${st.ok?"✅ Completa":"⚠️ Pendiente"}</td>`;
+            <td><input class="${st.utmOk?"":"point-input-invalid"}" value="${escapeHtml(p.utm||"")}" data-id="${p.id}" data-field="utm" placeholder="30T 463941 4106198"></td>`;
         tbody.appendChild(tr);
     });
     tbody.querySelectorAll("input").forEach(inp=>inp.addEventListener("change",e=>{
