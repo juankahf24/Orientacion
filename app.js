@@ -1,6 +1,6 @@
 const state={eventId:"",eventName:"ENTRENAMIENTO ORIENTACIÓN",
     planScale:10000,
-    planEquidistanceM:5,participantCount:10,controlCount:25,controlsPerRoute:8,maxControlReuse:6,points:{},routes:[],metrics:[],elevations:{},participantLogs:{},importedResults:[]};let map=null,layers={},currentLayer=null,markersLayer=null,routeLayer=null,userLocationMarker=null,userAccuracyCircle=null,selectedPointId="START";let currentAppStep=1;let __autoSaveTimer=null;let selectedIofPointId="START";
+    planEquidistanceM:5,participantCount:10,controlCount:25,controlsPerRoute:8,maxControlReuse:6,points:{},routes:[],metrics:[],elevations:{},participantLogs:{},participantNames:{},importedResults:[]};let map=null,layers={},currentLayer=null,markersLayer=null,routeLayer=null,userLocationMarker=null,userAccuracyCircle=null,selectedPointId="START";let currentAppStep=1;let __autoSaveTimer=null;let selectedIofPointId="START";
 
 function createFreshEventId(){
     return "ORI_"+new Date().toISOString().slice(0,10).replaceAll("-","")+"_"+Math.random().toString(36).slice(2,7).toUpperCase();
@@ -21,6 +21,7 @@ function resetStateToFreshEvent(){
     state.metrics=[];
     state.elevations={};
     state.participantLogs={};
+    state.participantNames={};
     state.importedResults=[];
     state.iofDescriptions={};
     state.routeWarnings=[];
@@ -1140,9 +1141,90 @@ function importGpxKmlFile(event){
     };
     reader.readAsText(file);
 }
+
+function ensureParticipantNamesStore(){
+    if(!state.participantNames || typeof state.participantNames!=="object" || Array.isArray(state.participantNames))state.participantNames={};
+    return state.participantNames;
+}
+
+function participantName(pid){
+    ensureParticipantNamesStore();
+    return String(state.participantNames[pid]||"").trim();
+}
+
+function participantDisplay(pid,routeId=""){
+    const name=participantName(pid);
+    const route=routeId?` · ${routeId}`:"";
+    return name?`${pid} · ${name}${route}`:`${pid}${route}`;
+}
+
+function setParticipantName(pid,name){
+    if(!pid)return;
+    ensureParticipantNamesStore();
+    const clean=String(name||"").trim().replace(/\s+/g," ");
+    if(clean)state.participantNames[pid]=clean;
+    else delete state.participantNames[pid];
+    (state.importedResults||[]).forEach(r=>{if(r.participantId===pid)r.participantName=clean;});
+    saveState();
+    updateOrganizerParticipantSelects({keepQr:true});
+    renderResultsControl();
+}
+
+function createParticipantNameField(id,labelText,onInput){
+    const wrap=document.createElement("div");
+    wrap.className="participant-name-field";
+    wrap.style.cssText="margin-top:10px;padding:10px;border:1px solid rgba(240,193,106,.35);border-radius:14px;background:rgba(255,255,255,.05);";
+    wrap.innerHTML=`<label style="display:block;margin-bottom:6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#f0c16a;">${labelText}</label><input id="${id}" type="text" placeholder="Nombre y apellidos" autocomplete="off" style="width:100%;"><div id="${id}Help" class="help" style="margin-top:6px;">Se guarda con el ID del participante y saldrá en resultados.</div>`;
+    const input=wrap.querySelector("input");
+    input.addEventListener("input",()=>onInput(input.value));
+    input.addEventListener("change",()=>onInput(input.value));
+    return wrap;
+}
+
+function ensureParticipantNameUi(){
+    const startSel=document.getElementById("startFlowParticipantSelect");
+    if(startSel && !document.getElementById("startParticipantNameInput")){
+        const field=createParticipantNameField("startParticipantNameInput","Nombre del participante",value=>{
+            const pid=document.getElementById("startFlowParticipantSelect")?.value;
+            if(pid)setParticipantName(pid,value);
+        });
+        startSel.insertAdjacentElement("afterend",field);
+    }
+
+    const finishSel=document.getElementById("finishFlowParticipantSelect");
+    if(finishSel && !document.getElementById("finishParticipantNameInput")){
+        const field=createParticipantNameField("finishParticipantNameInput","Nombre del participante",value=>{
+            const pid=document.getElementById("finishFlowParticipantSelect")?.value;
+            if(pid)setParticipantName(pid,value);
+        });
+        finishSel.insertAdjacentElement("afterend",field);
+    }
+    refreshParticipantNameInputs();
+}
+
+function refreshParticipantNameInputs(){
+    ensureParticipantNamesStore();
+    const startSel=document.getElementById("startFlowParticipantSelect");
+    const startInput=document.getElementById("startParticipantNameInput");
+    if(startSel&&startInput&&startInput.value!==participantName(startSel.value))startInput.value=participantName(startSel.value);
+
+    const finishSel=document.getElementById("finishFlowParticipantSelect");
+    const finishInput=document.getElementById("finishParticipantNameInput");
+    if(finishSel&&finishInput&&finishInput.value!==participantName(finishSel.value))finishInput.value=participantName(finishSel.value);
+}
+
+function resultParticipantName(resultOrPid){
+    const pid=typeof resultOrPid==="string"?resultOrPid:(resultOrPid?.participantId||"");
+    const stored=participantName(pid);
+    if(stored)return stored;
+    if(resultOrPid && typeof resultOrPid==="object")return String(resultOrPid.participantName||"").trim();
+    return "";
+}
+
 let organizerStartIndex=0;
 
-function updateOrganizerParticipantSelects(){
+function updateOrganizerParticipantSelects(opts={}){
+    ensureParticipantNamesStore();
     const startSel=document.getElementById("startFlowParticipantSelect");
     const finishSel=document.getElementById("finishFlowParticipantSelect");
 
@@ -1153,11 +1235,13 @@ function updateOrganizerParticipantSelects(){
         state.routes.forEach((r,i)=>{
             const opt=document.createElement("option");
             opt.value=r.participantId;
-            opt.textContent=`${r.participantId} · ${r.routeId}`;
+            opt.textContent=participantDisplay(r.participantId,r.routeId);
             sel.appendChild(opt);
         });
         if(current && [...sel.options].some(o=>o.value===current)) sel.value=current;
     });
+    ensureParticipantNameUi();
+    refreshParticipantNameInputs();
 }
 
 function getRouteByParticipant(pid){
@@ -1215,6 +1299,7 @@ function setStartFlowParticipantFromSelect(){
     if(!sel) return;
     organizerStartIndex=state.routes.findIndex(r=>r.participantId===sel.value);
     if(organizerStartIndex<0) organizerStartIndex=0;
+    refreshParticipantNameInputs();
     showParticipantQrForStart();
 }
 
@@ -1228,12 +1313,13 @@ function showParticipantQrForStart(){
 
     const payload=participantPayload(pid);
     const info=document.getElementById("startFlowInfo");
+    const name=resultParticipantName(pid);
     if(info){
         info.className="status ok";
-        info.innerHTML=`1️⃣ Enseña este QR a <b>${pid}</b> para cargar <b>${route.routeId}</b> en su móvil.`;
+        info.innerHTML=`1️⃣ Enseña este QR a <b>${escapeHtml(participantDisplay(pid,route.routeId))}</b> para cargar su recorrido en el móvil.`;
     }
 
-    renderOrganizerQr("organizerStartQrBox","organizerStartPayload",payload,`${pid} · ${route.routeId}`);
+    renderOrganizerQr("organizerStartQrBox","organizerStartPayload",payload,participantDisplay(pid,route.routeId));
 }
 
 function showStartQrForParticipant(){
@@ -1248,10 +1334,10 @@ function showStartQrForParticipant(){
     const info=document.getElementById("startFlowInfo");
     if(info){
         info.className="status ok";
-        info.innerHTML=`2️⃣ Ahora <b>${pid}</b> escanea SALIDA. Su cronómetro offline empieza en su móvil.`;
+        info.innerHTML=`2️⃣ Ahora <b>${escapeHtml(participantDisplay(pid,route.routeId))}</b> escanea SALIDA. Su cronómetro offline empieza en su móvil.`;
     }
 
-    renderOrganizerQr("organizerStartQrBox","organizerStartPayload",payload,`SALIDA · ${pid}`);
+    renderOrganizerQr("organizerStartQrBox","organizerStartPayload",payload,`SALIDA · ${participantDisplay(pid,route.routeId)}`);
 }
 
 function nextStartFlowParticipant(){
@@ -1265,6 +1351,7 @@ function nextStartFlowParticipant(){
 
     const sel=document.getElementById("startFlowParticipantSelect");
     if(sel) sel.value=state.routes[organizerStartIndex].participantId;
+    refreshParticipantNameInputs();
 
     showParticipantQrForStart();
 }
@@ -1281,12 +1368,13 @@ function renderFinishFlowQr(){
 
     const payload=controlPayload("FINISH");
     const info=document.getElementById("finishFlowInfo");
+    refreshParticipantNameInputs();
     if(info){
         info.className="status ok";
-        info.innerHTML=`Enseña este QR de LLEGADA a <b>${pid}</b>. Después su móvil debe mostrarte el QR final de resultado.`;
+        info.innerHTML=`Enseña este QR de LLEGADA a <b>${escapeHtml(participantDisplay(pid,route.routeId))}</b>. Después su móvil debe mostrarte el QR final de resultado.`;
     }
 
-    renderOrganizerQr("organizerFinishQrBox","organizerFinishPayload",payload,`LLEGADA · ${pid}`);
+    renderOrganizerQr("organizerFinishQrBox","organizerFinishPayload",payload,`LLEGADA · ${participantDisplay(pid,route.routeId)}`);
 }
 
 let resultQrCameraStream=null;
@@ -1324,6 +1412,7 @@ function parseResultPayload(raw){
             ok:true,
             eventId,
             participantId,
+            participantName:resultParticipantName(participantId),
             routeId:data.routeId||"",
             completed:!!data.completed,
             startTime:data.startTime||null,
@@ -1353,6 +1442,7 @@ function importResultPayload(raw){
         return;
     }
 
+    parsed.participantName=resultParticipantName(parsed.participantId);
     const idx=state.importedResults.findIndex(r=>r.participantId===parsed.participantId);
     if(idx>=0){
         state.importedResults[idx]=parsed;
@@ -1395,8 +1485,9 @@ function renderImportedResults(){
         const cls=r.completed?"ok":"bad";
         const icon=r.completed?"✅":"⚠️";
         const missing=(r.missingControls||[]).length ? ` · pendientes: ${(r.missingControls||[]).join(", ")}` : "";
+        const name=resultParticipantName(r);
         return `<div class="scan-item ${cls}">
-            <b>${escapeHtml(r.participantId)}</b>
+            <b>${escapeHtml(name?`${r.participantId} · ${name}`:r.participantId)}</b>
             <span>${escapeHtml(r.routeId||"--")} · ${totalTime}${missing}</span>
             <span>${icon}</span>
         </div>`;
@@ -1416,6 +1507,7 @@ function downloadImportedResults(){
     const data={
         eventId:state.eventId,
         exportedAt:new Date().toISOString(),
+        participantNames:state.participantNames||{},
         results:state.importedResults
     };
     downloadText(`resultados_importados_${state.eventId}.json`,JSON.stringify(data,null,2));
@@ -3186,7 +3278,7 @@ async function generateZip(verificationFromButton=null){ensureZipProgressUi();up
         zip.file("evento_orientacion.json",JSON.stringify(eventData,null,2));
         zip.file("recorridos.csv",routesCsv());
         zip.file("balizas.csv",pointsCsv());
-        zip.file("registros_offline_base.json",JSON.stringify({eventId:state.eventId,logs:state.participantLogs},null,2));
+        zip.file("registros_offline_base.json",JSON.stringify({eventId:state.eventId,participantNames:state.participantNames||{},logs:state.participantLogs},null,2));
         if(typeof verificationReportHtml==="function"){
             zip.file("VERIFICACION_EJERCICIO.html",verificationReportHtml(verification));
         }
@@ -4098,6 +4190,7 @@ function cloneStateForSave(){
     try{syncConfigFromUi()}catch(e){}
     const copy=JSON.parse(JSON.stringify(state));
     if(!copy.importedResults)copy.importedResults=[];
+    if(!copy.participantNames)copy.participantNames={};
     copy.currentStep=currentAppStep||1;
     return copy;
 }
@@ -4183,12 +4276,14 @@ function loadState(){
         currentAppStep=normalizeAppStep(navStep||payload.currentStep||state.currentStep||1);
         selectedIofPointId=payload.selectedIofPointId||selectedIofPointId||"START";
         if(!state.importedResults)state.importedResults=[];
+        if(!state.participantNames)state.participantNames={};
         return {restored:true,step:currentAppStep,reason:main.value===payload?"main":"backup"};
     }
 
     if(legacy.value){
         Object.assign(state,legacy.value);
         if(!state.importedResults)state.importedResults=[];
+        if(!state.participantNames)state.participantNames={};
         currentAppStep=normalizeAppStep(navStep||legacy.value.currentStep||1);
         return {restored:true,step:currentAppStep,reason:"legacy"};
     }
@@ -4272,6 +4367,7 @@ function classifyParticipantStatus(pid){
 
 function renderResultsControl(){
     if(!state.importedResults)state.importedResults=[];
+    ensureParticipantNamesStore();
     const routes=state.routes||[];
     const totalParticipants=routes.length||state.participantCount||0;
     const imported=state.importedResults.length;
@@ -4362,7 +4458,7 @@ function renderClassificationTable(){
 
     let rank=0;
     box.innerHTML=`<table class="results-table">
-        <thead><tr><th>Puesto</th><th>Participante</th><th>Recorrido</th><th>Tiempo</th><th>Controles completados</th><th>Controles pendientes</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Puesto</th><th>Participante</th><th>Nombre</th><th>Recorrido</th><th>Tiempo</th><th>Controles completados</th><th>Controles pendientes</th><th>Estado</th></tr></thead>
         <tbody>${rows.map(r=>{
             if(r.completed)rank++;
             const displayRank=r.completed?rank:"--";
@@ -4374,6 +4470,7 @@ function renderClassificationTable(){
             return `<tr class="${cls}">
                 <td>${displayRank}</td>
                 <td>${escapeHtml(r.participantId)}</td>
+                <td>${escapeHtml(resultParticipantName(r)||"--")}</td>
                 <td>${escapeHtml(r.routeId||"--")}</td>
                 <td>${time}</td>
                 <td>${controls}</td>
@@ -4400,8 +4497,9 @@ function renderParticipantsStatusGrid(){
         const ms=resultMs(r);
         const time=ms!==null?formatDuration(ms):"--";
         const missing=r&&r.missingControls&&r.missingControls.length?` · faltan: ${r.missingControls.join(", ")}`:"";
+        const name=resultParticipantName(route.participantId);
         return `<div class="scan-item ${st.cls}">
-            <b>${escapeHtml(route.participantId)}</b>
+            <b>${escapeHtml(name?`${route.participantId} · ${name}`:route.participantId)}</b>
             <span>${escapeHtml(route.routeId)} · ${st.status} · ${time}${escapeHtml(missing)}</span>
             <span>${st.icon}</span>
         </div>`;
@@ -4415,7 +4513,7 @@ function renderResultDetailSelect(){
     const current=sel.value;
     const rows=sortedImportedResults();
 
-    sel.innerHTML=`<option value="">Selecciona resultado...</option>`+rows.map(r=>`<option value="${escapeHtml(r.participantId)}">${escapeHtml(r.participantId)} · ${escapeHtml(r.routeId||"--")}</option>`).join("");
+    sel.innerHTML=`<option value="">Selecciona resultado...</option>`+rows.map(r=>`<option value="${escapeHtml(r.participantId)}">${escapeHtml(resultParticipantName(r)?`${r.participantId} · ${resultParticipantName(r)} · ${r.routeId||"--"}`:`${r.participantId} · ${r.routeId||"--"}`)}</option>`).join("");
     if(current && rows.some(r=>r.participantId===current)) sel.value=current;
 }
 
@@ -4437,7 +4535,9 @@ function renderSelectedResultDetail(){
     const scans=(r.scans||[]).map((s,i)=>`${i+1}. ${escapeHtml(s.id||s.controlId)} · ${escapeHtml(s.t||s.timestamp||"--")} · ${escapeHtml(s.st||s.status||"--")}`).join("<br>");
 
     box.className=r.completed?"status ok":"status warn";
-    box.innerHTML=`<b>${escapeHtml(r.participantId)} · ${escapeHtml(r.routeId||"--")}</b><br>
+    const name=resultParticipantName(r);
+    box.innerHTML=`<b>${escapeHtml(name?`${r.participantId} · ${name} · ${r.routeId||"--"}`:`${r.participantId} · ${r.routeId||"--"}`)}</b><br>
+        Nombre: ${escapeHtml(name||"--")}<br>
         Estado: ${r.completed?"✅ Completo":"⚠️ Con avisos"}<br>
         Salida: ${r.startTime?formatTime(r.startTime):"--"} · Llegada: ${r.finishTime?formatTime(r.finishTime):"--"} · Tiempo: ${time}<br>
         Pendientes: ${escapeHtml((r.missingControls||[]).join(", ")||"--")}<br><br>
@@ -4453,7 +4553,7 @@ function importStep5ResultFromInput(){
 
 
 function classificationRowsForExport(){
-    const rows=[["Puesto","Participante","Recorrido","Tiempo","Controles completados","Controles pendientes","Estado"]];
+    const rows=[["Puesto","Participante","Nombre","Recorrido","Tiempo","Controles completados","Controles pendientes","Estado"]];
     let rank=0;
     sortedImportedResults().forEach(r=>{
         if(r.completed)rank++;
@@ -4462,6 +4562,7 @@ function classificationRowsForExport(){
         rows.push([
             r.completed?rank:"--",
             r.participantId||"",
+            resultParticipantName(r)||"",
             r.routeId||"--",
             ms!==null?formatDuration(ms):"--",
             controls,
@@ -4500,7 +4601,7 @@ async function downloadClassificationExcel(){
 
     const sheetRows=rows.map((row,ri)=>{
         const r=ri+1;
-        const completed=row[6]==="OK";
+        const completed=row[7]==="OK";
         const styleId=ri===0?1:classificationXlsxStyle(row[0],completed);
         const cells=row.map((cell,ci)=>{
             const ref=colName(ci+1)+r;
@@ -4509,7 +4610,7 @@ async function downloadClassificationExcel(){
         return `<row r="${r}">${cells}</row>`;
     }).join("");
 
-    const widths=[10,18,14,14,24,30,10].map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("");
+    const widths=[10,18,28,14,14,24,30,10].map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("");
 
     const sheetXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -4597,7 +4698,7 @@ async function downloadClassificationExcel(){
 }
 
 function downloadImportedResultsCsv(){
-    const rows=[["Puesto","Participante","Recorrido","Estado","Tiempo","Salida","Llegada","ControlesCorrectos","Pendientes"]];
+    const rows=[["Puesto","Participante","Nombre","Recorrido","Estado","Tiempo","Salida","Llegada","ControlesCorrectos","Pendientes"]];
     let rank=0;
     sortedImportedResults().forEach(r=>{
         if(r.completed)rank++;
@@ -4606,6 +4707,7 @@ function downloadImportedResultsCsv(){
         rows.push([
             r.completed?rank:"",
             r.participantId,
+            resultParticipantName(r)||"",
             r.routeId||"",
             r.completed?"OK":"AVISO",
             ms!==null?formatDuration(ms):"",
@@ -4619,10 +4721,10 @@ function downloadImportedResultsCsv(){
 }
 
 function downloadDetailedSplitsCsv(){
-    const rows=[["Participante","Recorrido","Orden","Baliza","Hora","Estado"]];
+    const rows=[["Participante","Nombre","Recorrido","Orden","Baliza","Hora","Estado"]];
     sortedImportedResults().forEach(r=>{
         (r.scans||[]).forEach((s,i)=>{
-            rows.push([r.participantId,r.routeId||"",i+1,s.id||s.controlId||"",s.t||s.timestamp||"",s.st||s.status||""]);
+            rows.push([r.participantId,resultParticipantName(r)||"",r.routeId||"",i+1,s.id||s.controlId||"",s.t||s.timestamp||"",s.st||s.status||""]);
         });
     });
     downloadText(`parciales_${state.eventId}.csv`,rows.map(r=>r.map(csvEscape).join(";")).join("\n"));
