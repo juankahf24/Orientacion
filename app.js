@@ -5281,3 +5281,246 @@ downloadClassificationExcel=async function(){
         return oldRenderResultsControl.apply(this,arguments);
     };
 })();
+
+
+/* =========================================================
+   MILITOPO · RESULTADOS CLASIFICACION V18 REAL
+   Forzado final: dificultad en tabla/Excel y estados ES.
+   ========================================================= */
+(function(){
+    if(window.__MILITOPO_RESULTADOS_V18_REAL__)return;
+    window.__MILITOPO_RESULTADOS_V18_REAL__=true;
+
+    function esc(v){
+        try{return typeof escapeHtml==="function"?escapeHtml(v):String(v??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[ch]));}
+        catch(e){return String(v??"");}
+    }
+
+    window.formatDateTimeSpain=function(value){
+        if(!value)return "--";
+        const d=new Date(value);
+        if(!Number.isFinite(d.getTime()))return "--";
+        try{
+            return new Intl.DateTimeFormat("es-ES",{
+                timeZone:"Europe/Madrid",
+                day:"2-digit",
+                month:"2-digit",
+                year:"numeric",
+                hour:"2-digit",
+                minute:"2-digit",
+                second:"2-digit",
+                hour12:false
+            }).format(d).replace(",","");
+        }catch(e){return d.toLocaleString("es-ES");}
+    };
+
+    window.resultStatusEs=function(status){
+        const s=String(status||"").trim().toLowerCase();
+        const map={
+            correct:"Correcto",
+            correcta:"Correcto",
+            ok:"Correcto",
+            done:"Correcto",
+            completed:"Completado",
+            pending:"Pendiente",
+            pendiente:"Pendiente",
+            duplicate:"Duplicado",
+            duplicated:"Duplicado",
+            out_of_order:"Fuera de orden",
+            wrong_order:"Fuera de orden",
+            wrong:"Incorrecto",
+            incorrect:"Incorrecto",
+            error:"Error",
+            missed:"Pendiente",
+            missing:"Pendiente",
+            manual:"Manual",
+            partial:"Parcial"
+        };
+        return map[s]||String(status||"--");
+    };
+
+    window.routeDifficultyForResult=function(resultOrRouteId){
+        const routeId=typeof resultOrRouteId==="string"?resultOrRouteId:String(resultOrRouteId?.routeId||"");
+        const participantId=typeof resultOrRouteId==="object"?String(resultOrRouteId?.participantId||""):"";
+        const routes=state.routes||[];
+        let idx=routes.findIndex(r=>String(r.routeId||"")===routeId);
+        if(idx<0&&participantId)idx=routes.findIndex(r=>String(r.participantId||"")===participantId);
+        const metric=idx>=0?(state.metrics||[])[idx]:null;
+        const diff=String(metric?.difficulty||"").trim();
+        return diff||"--";
+    };
+
+    window.renderClassificationTable=function(){
+        const box=document.getElementById("classificationTable");
+        if(!box)return;
+        const rows=(typeof sortedImportedResults==="function"?sortedImportedResults():[...(state.importedResults||[])]);
+        if(!rows.length){
+            box.innerHTML=`<div class="status warn">Todavía no hay resultados importados.</div>`;
+            return;
+        }
+        let rank=0;
+        box.innerHTML=`<div class="classification-scroll-v18" style="width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px;">
+            <table class="results-table classification-table-v18" style="width:100%;min-width:980px;table-layout:fixed;border-collapse:separate;border-spacing:0;">
+                <colgroup>
+                    <col style="width:7%"><col style="width:12%"><col style="width:17%"><col style="width:10%"><col style="width:11%"><col style="width:11%"><col style="width:13%"><col style="width:13%"><col style="width:6%">
+                </colgroup>
+                <thead><tr>
+                    <th style="white-space:normal;line-height:1.12;vertical-align:top;">Puesto</th>
+                    <th style="white-space:normal;line-height:1.12;vertical-align:top;">Participante</th>
+                    <th style="white-space:normal;line-height:1.12;vertical-align:top;">Nombre</th>
+                    <th style="white-space:normal;line-height:1.12;vertical-align:top;">Recorrido</th>
+                    <th style="white-space:normal;line-height:1.12;vertical-align:top;">Dificultad</th>
+                    <th style="white-space:normal;line-height:1.12;vertical-align:top;">Tiempo</th>
+                    <th style="white-space:normal;line-height:1.12;vertical-align:top;">Controles<br>completados</th>
+                    <th style="white-space:normal;line-height:1.12;vertical-align:top;">Controles<br>pendientes</th>
+                    <th style="white-space:normal;line-height:1.12;vertical-align:top;text-align:center;">Estado</th>
+                </tr></thead>
+                <tbody>${rows.map(r=>{
+                    if(r.completed)rank++;
+                    const displayRank=r.completed?rank:"--";
+                    const ms=typeof resultMs==="function"?resultMs(r):null;
+                    const time=ms!==null&&typeof formatDuration==="function"?formatDuration(ms):"--";
+                    const controls=(r.scans||[]).filter(s=>(s.st||s.status)==="correct").length;
+                    const missing=(r.missingControls||[]).join(", ")||"--";
+                    const cls=typeof classificationRankClass==="function"?classificationRankClass(displayRank,r.completed):"";
+                    const difficulty=routeDifficultyForResult(r);
+                    return `<tr class="${cls}">
+                        <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${displayRank}</td>
+                        <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${esc(r.participantId||"--")}</td>
+                        <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${esc((typeof resultParticipantName==="function"?resultParticipantName(r):"")||"--")}</td>
+                        <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${esc(r.routeId||"--")}</td>
+                        <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;font-weight:900;">${esc(difficulty)}</td>
+                        <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${esc(time)}</td>
+                        <td style="vertical-align:top;text-align:center;white-space:normal;">${controls}</td>
+                        <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${esc(missing)}</td>
+                        <td style="vertical-align:top;text-align:center;white-space:normal;"><span class="result-chip" style="display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;line-height:1.05;white-space:normal;padding:.35em .45em;min-width:0;max-width:100%;"><span>${r.completed?"✅":"⚠️"}</span><span>${r.completed?"OK":"AVISO"}</span></span></td>
+                    </tr>`;
+                }).join("")}</tbody>
+            </table>
+        </div>`;
+    };
+
+    window.renderSelectedResultDetail=function(){
+        const sel=document.getElementById("resultDetailSelect");
+        const box=document.getElementById("selectedResultDetail");
+        if(!sel||!box)return;
+        const pid=sel.value;
+        const r=(state.importedResults||[]).find(x=>x.participantId===pid);
+        if(!r){
+            box.className="status warn";
+            box.innerHTML="Selecciona un resultado importado.";
+            return;
+        }
+        const ms=typeof resultMs==="function"?resultMs(r):null;
+        const time=ms!==null&&typeof formatDuration==="function"?formatDuration(ms):"--";
+        const name=typeof resultParticipantName==="function"?resultParticipantName(r):"";
+        const scans=(r.scans||[]).map((s,i)=>{
+            const id=s.id||s.controlId||"--";
+            const when=s.t||s.timestamp||"";
+            const st=s.st||s.status||"--";
+            return `<div style="padding:7px 0;border-top:1px solid rgba(255,255,255,.14);line-height:1.35;"><b>${i+1}. ${esc(id)}</b><br><span>Hora: ${esc(formatDateTimeSpain(when))}</span><br><span>Estado: ${esc(resultStatusEs(st))}</span></div>`;
+        }).join("");
+        box.className=r.completed?"status ok":"status warn";
+        box.innerHTML=`<div style="display:grid;gap:8px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;">
+            <div><b>Participante:</b> ${esc(r.participantId||"--")}</div>
+            <div><b>Nombre:</b> ${esc(name||"--")}</div>
+            <div><b>Recorrido:</b> ${esc(r.routeId||"--")}</div>
+            <div><b>Dificultad:</b> ${esc(routeDifficultyForResult(r))}</div>
+            <div><b>Estado:</b> ${r.completed?"✅ Completo":"⚠️ Con avisos"}</div>
+            <div><b>Salida:</b> ${esc(formatDateTimeSpain(r.startTime))}</div>
+            <div><b>Llegada:</b> ${esc(formatDateTimeSpain(r.finishTime))}</div>
+            <div><b>Tiempo:</b> ${esc(time)}</div>
+            <div><b>Controles pendientes:</b> ${esc((r.missingControls||[]).join(", ")||"--")}</div>
+            <div style="margin-top:8px;"><b>Pasos registrados</b></div>
+            <div>${scans||"--"}</div>
+        </div>`;
+    };
+
+    window.classificationRowsForExport=function(){
+        const rows=[["Puesto","Participante","Nombre","Recorrido","Dificultad","Tiempo","Controles completados","Controles pendientes","Estado"]];
+        let rank=0;
+        const data=typeof sortedImportedResults==="function"?sortedImportedResults():[...(state.importedResults||[])];
+        data.forEach(r=>{
+            if(r.completed)rank++;
+            const ms=typeof resultMs==="function"?resultMs(r):null;
+            const controls=(r.scans||[]).filter(s=>(s.st||s.status)==="correct").length;
+            rows.push([
+                r.completed?rank:"--",
+                r.participantId||"",
+                (typeof resultParticipantName==="function"?resultParticipantName(r):"")||"",
+                r.routeId||"--",
+                routeDifficultyForResult(r),
+                ms!==null&&typeof formatDuration==="function"?formatDuration(ms):"--",
+                controls,
+                (r.missingControls||[]).join(", ")||"--",
+                r.completed?"OK":"AVISO"
+            ]);
+        });
+        return rows;
+    };
+
+    window.downloadClassificationExcel=async function(){
+        const rows=classificationRowsForExport();
+        if(rows.length<=1)return toast("No hay clasificación para exportar");
+        if(typeof JSZip==="undefined")return toast("No se pudo crear XLSX: JSZip no está cargado");
+        const escXml=v=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
+        const colName=n=>{let s="";while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;};
+        const sheetRows=rows.map((row,ri)=>{
+            const r=ri+1;
+            const completed=row[8]==="OK";
+            const styleId=ri===0?1:(typeof classificationXlsxStyle==="function"?classificationXlsxStyle(row[0],completed):0);
+            const maxLen=Math.max(...row.map(cell=>String(cell??"").length));
+            const rowHeight=ri===0?52:Math.min(125,Math.max(40,30+Math.ceil(maxLen/24)*12));
+            const cells=row.map((cell,ci)=>`<c r="${colName(ci+1)+r}" t="inlineStr" s="${styleId}"><is><t>${escXml(cell)}</t></is></c>`).join("");
+            return `<row r="${r}" ht="${rowHeight}" customHeight="1">${cells}</row>`;
+        }).join("");
+        const widths=[8,14,24,12,14,16,22,24,11].map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("");
+        const sheetXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+ <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
+ <dimension ref="A1:I${rows.length}"/>
+ <cols>${widths}</cols>
+ <sheetData>${sheetRows}</sheetData>
+ <pageMargins left="0.25" right="0.25" top="0.45" bottom="0.45" header="0.15" footer="0.15"/>
+ <pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0"/>
+</worksheet>`;
+        const workbookXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Clasificacion" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+        const relsXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+        const workbookRelsXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+        const fills=["FFFFFF","D9EAD3","FFF2CC","E7E6E6","FCE5CD","D9EAD3","D0E0E3","D9D2E9","EAD1DC","FFF2CC","CFE2F3","F4CCCC","EEEEEE"].map(c=>`<fill><patternFill patternType="solid"><fgColor rgb="FF${c}"/><bgColor indexed="64"/></patternFill></fill>`).join("");
+        const xfs=[
+            '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+            '<xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+            '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+            '<xf numFmtId="0" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+            '<xf numFmtId="0" fontId="1" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+            '<xf numFmtId="0" fontId="0" fillId="5" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+            '<xf numFmtId="0" fontId="0" fillId="6" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+            '<xf numFmtId="0" fontId="0" fillId="7" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+            '<xf numFmtId="0" fontId="0" fillId="8" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+            '<xf numFmtId="0" fontId="0" fillId="9" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+            '<xf numFmtId="0" fontId="0" fillId="10" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+            '<xf numFmtId="0" fontId="0" fillId="11" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+            '<xf numFmtId="0" fontId="0" fillId="12" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>'
+        ].join("");
+        const stylesXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="13"><fill><patternFill patternType="none"/></fill>${fills}</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="13">${xfs}</cellXfs></styleSheet>`;
+        const contentTypesXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+        const zip=new JSZip();
+        zip.file("[Content_Types].xml",contentTypesXml);
+        zip.folder("_rels").file(".rels",relsXml);
+        zip.folder("xl").file("workbook.xml",workbookXml);
+        zip.folder("xl").folder("_rels").file("workbook.xml.rels",workbookRelsXml);
+        zip.folder("xl").folder("worksheets").file("sheet1.xml",sheetXml);
+        zip.folder("xl").file("styles.xml",stylesXml);
+        const blob=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+        const filename=`clasificacion_${state.eventId||"militopo"}.xlsx`;
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1500);
+    };
+
+    window.addEventListener("load",()=>{
+        setTimeout(()=>{
+            if(typeof currentAppStep!=="undefined"&&currentAppStep===6&&typeof renderResultsControl==="function")renderResultsControl();
+        },500);
+    });
+})();
