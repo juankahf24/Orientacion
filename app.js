@@ -4477,8 +4477,28 @@ function renderClassificationTable(){
     }
 
     let rank=0;
-    box.innerHTML=`<table class="results-table">
-        <thead><tr><th>Puesto</th><th>Participante</th><th>Nombre</th><th>Recorrido</th><th>Tiempo</th><th>Controles completados</th><th>Controles pendientes</th><th>Estado</th></tr></thead>
+    box.innerHTML=`<div style="width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table class="results-table" style="width:100%;min-width:780px;table-layout:fixed;border-collapse:separate;border-spacing:0;">
+        <colgroup>
+            <col style="width:8%">
+            <col style="width:13%">
+            <col style="width:19%">
+            <col style="width:10%">
+            <col style="width:12%">
+            <col style="width:14%">
+            <col style="width:14%">
+            <col style="width:10%">
+        </colgroup>
+        <thead><tr>
+            <th style="white-space:normal;line-height:1.15;vertical-align:top;">Puesto</th>
+            <th style="white-space:normal;line-height:1.15;vertical-align:top;">Participante</th>
+            <th style="white-space:normal;line-height:1.15;vertical-align:top;">Nombre</th>
+            <th style="white-space:normal;line-height:1.15;vertical-align:top;">Recorrido</th>
+            <th style="white-space:normal;line-height:1.15;vertical-align:top;">Tiempo</th>
+            <th style="white-space:normal;line-height:1.15;vertical-align:top;">Controles<br>completados</th>
+            <th style="white-space:normal;line-height:1.15;vertical-align:top;">Controles<br>pendientes</th>
+            <th style="white-space:normal;line-height:1.15;vertical-align:top;text-align:center;">Estado</th>
+        </tr></thead>
         <tbody>${rows.map(r=>{
             if(r.completed)rank++;
             const displayRank=r.completed?rank:"--";
@@ -4488,17 +4508,17 @@ function renderClassificationTable(){
             const missing=(r.missingControls||[]).join(", ");
             const cls=classificationRankClass(displayRank,r.completed);
             return `<tr class="${cls}">
-                <td>${displayRank}</td>
-                <td>${escapeHtml(r.participantId)}</td>
-                <td>${escapeHtml(resultParticipantName(r)||"--")}</td>
-                <td>${escapeHtml(r.routeId||"--")}</td>
-                <td>${time}</td>
-                <td>${controls}</td>
-                <td>${escapeHtml(missing||"--")}</td>
-                <td><span class="result-chip">${r.completed?"✅ OK":"⚠️ AVISO"}</span></td>
+                <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${displayRank}</td>
+                <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${escapeHtml(r.participantId)}</td>
+                <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${escapeHtml(resultParticipantName(r)||"--")}</td>
+                <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${escapeHtml(r.routeId||"--")}</td>
+                <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${time}</td>
+                <td style="vertical-align:top;text-align:center;white-space:normal;">${controls}</td>
+                <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${escapeHtml(missing||"--")}</td>
+                <td style="vertical-align:top;text-align:center;white-space:normal;"><span class="result-chip" style="display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:normal;line-height:1.1;max-width:100%;padding:.35em .55em;">${r.completed?"✅ OK":"⚠️ AVISO"}</span></td>
             </tr>`;
         }).join("")}</tbody>
-    </table>`;
+    </table></div>`;
 }
 
 function renderParticipantsStatusGrid(){
@@ -4537,6 +4557,27 @@ function renderResultDetailSelect(){
     if(current && rows.some(r=>r.participantId===current)) sel.value=current;
 }
 
+
+function formatDateTimeSpain(value){
+    if(!value)return "--";
+    const d=new Date(value);
+    if(!Number.isFinite(d.getTime()))return "--";
+    try{
+        return new Intl.DateTimeFormat("es-ES",{
+            timeZone:"Europe/Madrid",
+            day:"2-digit",
+            month:"2-digit",
+            year:"numeric",
+            hour:"2-digit",
+            minute:"2-digit",
+            second:"2-digit",
+            hour12:false
+        }).format(d).replace(",", "");
+    }catch(e){
+        return d.toLocaleString("es-ES");
+    }
+}
+
 function renderSelectedResultDetail(){
     const sel=document.getElementById("resultDetailSelect");
     const box=document.getElementById("selectedResultDetail");
@@ -4552,16 +4593,28 @@ function renderSelectedResultDetail(){
 
     const ms=resultMs(r);
     const time=ms!==null?formatDuration(ms):"--";
-    const scans=(r.scans||[]).map((s,i)=>`${i+1}. ${escapeHtml(s.id||s.controlId)} · ${escapeHtml(s.t||s.timestamp||"--")} · ${escapeHtml(s.st||s.status||"--")}`).join("<br>");
+    const scans=(r.scans||[]).map((s,i)=>{
+        const id=s.id||s.controlId||"--";
+        const when=s.t||s.timestamp||"";
+        const st=s.st||s.status||"--";
+        return `<div style="padding:6px 0;border-top:1px solid rgba(255,255,255,.12);"><b>${i+1}. ${escapeHtml(id)}</b><br><span>${escapeHtml(formatDateTimeSpain(when))}</span><br><span>Estado: ${escapeHtml(st)}</span></div>`;
+    }).join("");
 
     box.className=r.completed?"status ok":"status warn";
     const name=resultParticipantName(r);
-    box.innerHTML=`<b>${escapeHtml(name?`${r.participantId} · ${name} · ${r.routeId||"--"}`:`${r.participantId} · ${r.routeId||"--"}`)}</b><br>
-        Nombre: ${escapeHtml(name||"--")}<br>
-        Estado: ${r.completed?"✅ Completo":"⚠️ Con avisos"}<br>
-        Salida: ${r.startTime?formatTime(r.startTime):"--"} · Llegada: ${r.finishTime?formatTime(r.finishTime):"--"} · Tiempo: ${time}<br>
-        Pendientes: ${escapeHtml((r.missingControls||[]).join(", ")||"--")}<br><br>
-        <b>Pasos registrados</b><br>${scans||"--"}`;
+    box.innerHTML=`<div style="display:grid;gap:8px;line-height:1.35;">
+        <div><b>${escapeHtml(r.participantId||"--")}${name?` · ${escapeHtml(name)}`:""}</b></div>
+        <div><b>Participante:</b> ${escapeHtml(r.participantId||"--")}</div>
+        <div><b>Nombre:</b> ${escapeHtml(name||"--")}</div>
+        <div><b>Recorrido:</b> ${escapeHtml(r.routeId||"--")}</div>
+        <div><b>Estado:</b> ${r.completed?"✅ Completo":"⚠️ Con avisos"}</div>
+        <div><b>Salida:</b> ${escapeHtml(formatDateTimeSpain(r.startTime))}</div>
+        <div><b>Llegada:</b> ${escapeHtml(formatDateTimeSpain(r.finishTime))}</div>
+        <div><b>Tiempo:</b> ${escapeHtml(time)}</div>
+        <div><b>Controles pendientes:</b> ${escapeHtml((r.missingControls||[]).join(", ")||"--")}</div>
+        <div style="margin-top:8px;"><b>Pasos registrados</b></div>
+        <div>${scans||"--"}</div>
+    </div>`;
 }
 
 function importStep5ResultFromInput(){
@@ -4623,20 +4676,26 @@ async function downloadClassificationExcel(){
         const r=ri+1;
         const completed=row[7]==="OK";
         const styleId=ri===0?1:classificationXlsxStyle(row[0],completed);
+        const maxLen=Math.max(...row.map(cell=>String(cell??"").length));
+        const rowHeight=ri===0?48:Math.min(110,Math.max(38,28+Math.ceil(maxLen/28)*12));
         const cells=row.map((cell,ci)=>{
             const ref=colName(ci+1)+r;
             return `<c r="${ref}" t="inlineStr" s="${styleId}"><is><t>${escXml(cell)}</t></is></c>`;
         }).join("");
-        return `<row r="${r}">${cells}</row>`;
+        return `<row r="${r}" ht="${rowHeight}" customHeight="1">${cells}</row>`;
     }).join("");
 
-    const widths=[10,18,28,14,14,24,30,10].map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("");
+    const widths=[8,13,23,11,13,18,24,10].map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("");
 
     const sheetXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+ <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
+ <dimension ref="A1:H${rows.length}"/>
  <cols>${widths}</cols>
  <sheetData>${sheetRows}</sheetData>
+ <pageMargins left="0.25" right="0.25" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>
+ <pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0"/>
 </worksheet>`;
 
     const workbookXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -4661,19 +4720,19 @@ async function downloadClassificationExcel(){
     ].map(c=>`<fill><patternFill patternType="solid"><fgColor rgb="FF${c}"/><bgColor indexed="64"/></patternFill></fill>`).join("");
 
     const xfs=[
-        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
-        '<xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
-        '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
-        '<xf numFmtId="0" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
-        '<xf numFmtId="0" fontId="1" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
-        '<xf numFmtId="0" fontId="0" fillId="5" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
-        '<xf numFmtId="0" fontId="0" fillId="6" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
-        '<xf numFmtId="0" fontId="0" fillId="7" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
-        '<xf numFmtId="0" fontId="0" fillId="8" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
-        '<xf numFmtId="0" fontId="0" fillId="9" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
-        '<xf numFmtId="0" fontId="0" fillId="10" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
-        '<xf numFmtId="0" fontId="0" fillId="11" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>',
-        '<xf numFmtId="0" fontId="0" fillId="12" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+        '<xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+        '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+        '<xf numFmtId="0" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+        '<xf numFmtId="0" fontId="1" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+        '<xf numFmtId="0" fontId="0" fillId="5" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+        '<xf numFmtId="0" fontId="0" fillId="6" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+        '<xf numFmtId="0" fontId="0" fillId="7" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+        '<xf numFmtId="0" fontId="0" fillId="8" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+        '<xf numFmtId="0" fontId="0" fillId="9" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+        '<xf numFmtId="0" fontId="0" fillId="10" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+        '<xf numFmtId="0" fontId="0" fillId="11" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>',
+        '<xf numFmtId="0" fontId="0" fillId="12" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf>'
     ].join("");
 
     const stylesXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
