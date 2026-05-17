@@ -663,9 +663,9 @@ async function generateRoutes(silent=false){
 
     const summary=document.getElementById("routeSummary");
     summary.className="status warn";
-    summary.textContent="Calculando desnivel real y generando recorridos profesionales...";
-    if(!silent) showRouteGenerationLoader("Calculando desnivel real...", 8);
-    else updateRouteGenerationLoader("Calculando desnivel real...", 8);
+    summary.textContent="Calculando desnivel real y generando recorridos limpios...";
+    if(!silent) showRouteGenerationLoader("Calculando desnivel real...",8);
+    else updateRouteGenerationLoader("Calculando desnivel real...",8);
     await routeSleep(60);
 
     let elevationInfo={source:"fallback",realCount:0,total:0};
@@ -681,17 +681,22 @@ async function generateRoutes(silent=false){
         elevationInfo={source:"fallback",error:true};
     }
 
-    summary.textContent = elevationInfo.source==="real"
-        ? "Desnivel real listo. Buscando recorridos lógicos..."
-        : "No se pudo completar el desnivel real a tiempo. Generando con respaldo de montaña...";
-    updateRouteGenerationLoader(elevationInfo.source==="real" ? "Desnivel real listo. Diseñando recorridos..." : "Usando respaldo de montaña. Diseñando recorridos...", 24);
+    summary.textContent=elevationInfo.source==="real"
+        ? "Desnivel real listo. Diseñando recorridos con trazado lógico..."
+        : "No se pudo completar el desnivel real a tiempo. Diseñando recorridos con respaldo de montaña...";
+    updateRouteGenerationLoader(elevationInfo.source==="real"?"Desnivel real listo. Diseñando trazados...":"Usando respaldo de montaña. Diseñando trazados...",24);
     await routeSleep(60);
 
-    const controls=getAvailableControls(),start=state.points.START,finish=state.points.FINISH,routes=[],usage={},qualityWarnings=[];
+    const controls=getAvailableControls();
+    const start=state.points.START;
+    const finish=state.points.FINISH;
+    const routes=[];
+    const usage={};
+    const qualityWarnings=[];
     controls.forEach(c=>usage[c.id]=0);
-    const context=buildProfessionalRouteContext(start,controls,finish);
 
-    const attempts=Math.max(420,Math.min(1800,state.participantCount*95+controls.length*22));
+    const context=buildProfessionalRouteContext(start,controls,finish);
+    const attempts=Math.max(760,Math.min(2600,state.participantCount*120+controls.length*36));
 
     for(let r=0;r<state.participantCount;r++){
         updateRouteGenerationLoader(`Diseñando recorrido ${r+1} de ${state.participantCount}...`,24+((r/Math.max(1,state.participantCount))*66));
@@ -699,38 +704,48 @@ async function generateRoutes(silent=false){
 
         let best=null;
         for(let a=0;a<attempts;a++){
-            const candidateControls=professionalSampleControls(context,state.controlsPerRoute,usage,r,a,routes);
-            const ordered=orderControlsSmart(start,candidateControls,finish,a,context);
+            const sampled=professionalSampleControls(context,state.controlsPerRoute,usage,r,a,routes);
+            const candidateControls=sampled.controls||sampled;
+            const direction=sampled.direction||1;
+            if(!candidateControls||candidateControls.length<state.controlsPerRoute)continue;
+
+            const ordered=orderControlsSmart(start,candidateControls,finish,a,context,direction);
             const route=[start,...ordered,finish];
             const metrics=calcRouteMetrics(route);
-            const shape=routeShapePenalty(route);
+            const quality=routeQualityDetails(route,context,direction);
             const sequencePenalty=calcSequenceOverlapPenalty(ordered,routes);
             const overlap=calcOverlapPenalty(ordered,routes);
             const reusePenalty=ordered.reduce((sum,c)=>sum+Math.max(0,(usage[c.id]||0)-Math.max(1,state.maxControlReuse||1)+1),0);
             const balancePenalty=calcDistanceBalancePenalty(metrics,routes.map(x=>x.metrics));
-            const professional=professionalRouteScore(route,context);
 
-            const score =
-                professional * 11.0 +
-                balancePenalty * 7.0 +
-                sequencePenalty * 8.5 +
-                overlap * 0.42 +
-                reusePenalty * 0.28 +
-                routeDistanceKm(route) * 0.035 +
-                Math.random() * 0.015;
+            const score=
+                quality.total*18.0 +
+                sequencePenalty*9.5 +
+                balancePenalty*6.0 +
+                overlap*0.85 +
+                reusePenalty*3.2 +
+                metrics.distanceKm*0.16 +
+                Math.random()*0.01;
 
-            if(!best||score<best.score)best={route,controls:ordered,metrics,shape,score,sequencePenalty,balancePenalty,professional};
+            if(!best||score<best.score)best={route,controls:ordered,metrics,quality,score,sequencePenalty,balancePenalty,direction};
         }
 
         if(!best)continue;
         best.controls.forEach(c=>usage[c.id]=(usage[c.id]||0)+1);
+        best.metrics.quality=best.quality.label;
+        best.metrics.qualityCode=best.quality.code;
+        best.metrics.qualityScore=Number(best.quality.total.toFixed(2));
+        best.metrics.routeMode=context.mode==="loop"?"circular":"lineal";
         routes.push(best);
 
-        if(best.shape.crossings>0 || best.shape.backtracks>1.15 || best.shape.zigzags>2.2){
-            qualityWarnings.push(`${"R"+String(r+1).padStart(2,"0")}: trazado aceptado, pero revisa la posición de balizas si quieres un recorrido aún más limpio.`);
+        const rid="R"+String(r+1).padStart(2,"0");
+        if(best.quality.code==="forced"){
+            qualityWarnings.push(`${rid}: Recorrido forzado. Revisa distribución de balizas, reduce controles por recorrido o mueve salida/llegada.`);
+        }else if(best.quality.code==="acceptable"){
+            qualityWarnings.push(`${rid}: Recorrido aceptable. Trazado válido, pero no totalmente limpio.`);
         }
-        if(best.sequencePenalty>=50){
-            qualityWarnings.push(`${"R"+String(r+1).padStart(2,"0")}: coincidencia de tres balizas seguidas inevitable con la configuración actual.`);
+        if(best.sequencePenalty>=80){
+            qualityWarnings.push(`${rid}: se evitó en lo posible copiar tramos, pero la configuración obliga a compartir alguna secuencia.`);
         }
     }
 
@@ -745,6 +760,7 @@ async function generateRoutes(silent=false){
     }));
     state.metrics=routes.map(x=>x.metrics);
     assignBalancedDifficulties(state.metrics);
+    state.routeQualitySummary=buildRouteQualitySummary(state.metrics);
     state.routeWarnings=qualityWarnings;
 
     updateRouteGenerationLoader("Pintando resultados...",94);
@@ -756,8 +772,8 @@ async function generateRoutes(silent=false){
     saveState();
 
     updateRouteGenerationLoader("Recorridos generados correctamente",100);
-    if(qualityWarnings.length)toast("Recorridos generados con avisos");
-    else toast("Recorridos profesionales generados");
+    if(qualityWarnings.some(w=>/forzado/i.test(w)))toast("Recorridos generados con algún trazado forzado");
+    else toast("Recorridos generados con trazado lógico");
     if(!silent){
         await routeSleep(450);
         hideRouteGenerationLoader();
@@ -766,274 +782,286 @@ async function generateRoutes(silent=false){
 }
 
 function buildProfessionalRouteContext(start,controls,finish){
-    const axis=routeAxis(start,finish);
-    const analysisById=new Map();
+    const all=[start,...controls,finish].filter(Boolean);
+    const lat0=all.reduce((s,p)=>s+Number(p.lat||0),0)/Math.max(1,all.length);
+    const lon0=all.reduce((s,p)=>s+Number(p.lon||0),0)/Math.max(1,all.length);
+    const cosLat=Math.cos(lat0*Math.PI/180)||1;
+    const xy=p=>({x:(Number(p.lon||0)-lon0)*111.32*cosLat,y:(Number(p.lat||0)-lat0)*110.57});
+    const startXY=xy(start),finishXY=xy(finish);
+    const controlXY=new Map();
+    controls.forEach(c=>controlXY.set(c.id,xy(c)));
+    const center=controls.length?controls.reduce((o,c)=>{const p=controlXY.get(c.id);o.x+=p.x;o.y+=p.y;return o;},{x:0,y:0}):{x:0,y:0};
+    center.x/=Math.max(1,controls.length);center.y/=Math.max(1,controls.length);
+
+    let spread=0;
+    controls.forEach(c=>{
+        const p=controlXY.get(c.id);
+        spread=Math.max(spread,Math.hypot(p.x-center.x,p.y-center.y));
+    });
+    const sfKm=Math.hypot(finishXY.x-startXY.x,finishXY.y-startXY.y);
+    const loopMode=sfKm<Math.max(0.18,spread*0.28);
+
+    const axis={x:finishXY.x-startXY.x,y:finishXY.y-startXY.y};
+    let len=Math.hypot(axis.x,axis.y);
+    if(loopMode||len<0.05){
+        const pca=principalAxisFromControls(controls,controlXY,center);
+        axis.x=pca.x;axis.y=pca.y;len=Math.hypot(axis.x,axis.y)||1;
+    }
+    axis.len=len;axis.len2=len*len||1;
+
+    const angles=new Map();
+    const radii=new Map();
+    controls.forEach(c=>{
+        const p=controlXY.get(c.id);
+        const a=Math.atan2(p.y-center.y,p.x-center.x);
+        const r=Math.hypot(p.x-center.x,p.y-center.y);
+        angles.set(c.id,a);radii.set(c.id,r);
+    });
+    const avgRadius=[...radii.values()].reduce((s,v)=>s+v,0)/Math.max(1,radii.size);
+    const maxRadiusDev=Math.max(0.1,...[...radii.values()].map(v=>Math.abs(v-avgRadius)));
+    const startAngle=Math.atan2(startXY.y-center.y,startXY.x-center.x);
+
     let maxSide=0;
     controls.forEach(c=>{
-        const pr=projectOnRouteAxis(axis,c);
-        maxSide=Math.max(maxSide,Math.abs(pr.side));
-        analysisById.set(c.id,{...pr});
+        const p=controlXY.get(c.id);
+        const rel={x:p.x-startXY.x,y:p.y-startXY.y};
+        const side=(rel.x*axis.y-rel.y*axis.x)/(axis.len||1);
+        maxSide=Math.max(maxSide,Math.abs(side));
     });
     maxSide=maxSide||1;
+
+    return {start,finish,controls,xy,controlXY,startXY,finishXY,center,axis,spread,sfKm,mode:loopMode?"loop":"linear",angles,radii,avgRadius,maxRadiusDev,startAngle,maxSide};
+}
+
+function principalAxisFromControls(controls,controlXY,center){
+    if(!controls.length)return {x:1,y:0};
+    let sxx=0,syy=0,sxy=0;
     controls.forEach(c=>{
-        const a=analysisById.get(c.id);
-        a.sideNorm=Math.max(-1,Math.min(1,a.side/maxSide));
-        a.dStart=haversineKm(start,c);
-        a.dFinish=haversineKm(c,finish);
+        const p=controlXY.get(c.id);
+        const x=p.x-center.x,y=p.y-center.y;
+        sxx+=x*x;syy+=y*y;sxy+=x*y;
     });
-    const context={start,finish,controls,axis,analysisById,maxSide,masterOrders:[]};
-    context.masterOrders=buildMasterControlOrders(start,controls,finish,context);
-    return context;
+    const theta=0.5*Math.atan2(2*sxy,sxx-syy);
+    let vx=Math.cos(theta),vy=Math.sin(theta);
+    return {x:vx,y:vy};
 }
 
-function routeAxis(start,finish){
-    const sx=Number(start.lon)||0,sy=Number(start.lat)||0,fx=Number(finish.lon)||0,fy=Number(finish.lat)||0;
-    const vx=fx-sx,vy=fy-sy,len2=vx*vx+vy*vy||1,len=Math.sqrt(len2)||1;
-    return {sx,sy,fx,fy,vx,vy,len2,len};
+function normalizeAnglePositive(a){
+    const two=Math.PI*2;
+    return ((a%two)+two)%two;
 }
 
-function projectOnRouteAxis(axis,p){
-    const px=Number(p.lon)||0,py=Number(p.lat)||0;
-    const dx=px-axis.sx,dy=py-axis.sy;
-    const t=(dx*axis.vx+dy*axis.vy)/axis.len2;
-    const side=(dx*axis.vy-dy*axis.vx)/axis.len;
-    return {t,side};
+function controlAnalysis(context,c,direction=1){
+    if(!context||!c)return {t:0,side:0,sideNorm:0};
+    if(context.mode==="loop"){
+        const angle=context.angles.get(c.id)??0;
+        const delta=direction>=0?normalizeAnglePositive(angle-context.startAngle):normalizeAnglePositive(context.startAngle-angle);
+        const t=delta/(Math.PI*2);
+        const radius=context.radii.get(c.id)??context.avgRadius;
+        const sideNorm=(radius-context.avgRadius)/(context.maxRadiusDev||1);
+        return {t,side:radius,sideNorm:Math.max(-1.4,Math.min(1.4,sideNorm)),radius};
+    }
+    const p=context.controlXY.get(c.id)||context.xy(c);
+    const rel={x:p.x-context.startXY.x,y:p.y-context.startXY.y};
+    const t=(rel.x*context.axis.x+rel.y*context.axis.y)/(context.axis.len2||1);
+    const side=(rel.x*context.axis.y-rel.y*context.axis.x)/(context.axis.len||1);
+    return {t,side,sideNorm:Math.max(-1.4,Math.min(1.4,side/(context.maxSide||1)))};
 }
 
-function controlAnalysis(context,c){
-    return context?.analysisById?.get(c.id)||projectOnRouteAxis(routeAxis(context?.start||state.points.START,context?.finish||state.points.FINISH),c);
-}
-
-function buildMasterControlOrders(start,controls,finish,context){
-    const raws=[];
-    raws.push(orderByProjection(start,controls,finish));
-    raws.push(orderByAngleSweep(start,controls,finish,0));
-    raws.push(orderByAngleSweep(start,controls,finish,3));
-    raws.push(orderByNearestWithLookahead(start,controls,finish,context));
-    raws.push(orderByCorridorSnake(start,controls,finish,context,1));
-    raws.push(orderByCorridorSnake(start,controls,finish,context,-1));
-
-    const seen=new Set();
-    const out=[];
-    raws.forEach(raw=>{
-        const improved=twoOptImprove([start,...raw,finish]).slice(1,-1);
-        const key=improved.map(p=>p.id).join("|");
-        if(key&&!seen.has(key)){
-            seen.add(key);
-            out.push(improved);
-        }
-    });
-    return out.length?out:[orderByProjection(start,controls,finish)];
+function routePointProgress(context,p,direction,index,lastIndex){
+    if(index===0)return 0;
+    if(index===lastIndex)return 1;
+    return controlAnalysis(context,p,direction).t;
 }
 
 function professionalSampleControls(context,count,usage,routeIndex,attempt,existingRoutes=[]){
-    const controls=context.controls;
-    if(count>=controls.length)return [...controls];
-    const mode=attempt%5;
-    if(mode===0||mode===3){
-        return sampleFromMasterOrder(context.masterOrders[(routeIndex+attempt)%context.masterOrders.length],count,usage,routeIndex,attempt);
+    if(count>=context.controls.length){
+        const direction=routeDirectionForCandidate(context,routeIndex,attempt);
+        return {controls:[...context.controls],direction};
     }
-    if(mode===1){
-        return sampleByCorridorWindows(context,count,usage,routeIndex,attempt,0);
-    }
-    if(mode===2){
-        return sampleByCorridorWindows(context,count,usage,routeIndex,attempt,1);
-    }
-    return sampleBalancedByUsage(context,count,usage,routeIndex,attempt);
+    const direction=routeDirectionForCandidate(context,routeIndex,attempt);
+    const mode=attempt%4;
+    let controls;
+    if(mode===0)controls=sampleProgressionWindows(context,count,usage,routeIndex,attempt,existingRoutes,direction);
+    else if(mode===1)controls=sampleSmoothGreedy(context,count,usage,routeIndex,attempt,existingRoutes,direction);
+    else if(mode===2)controls=sampleProgressionWindows(context,count,usage,routeIndex,attempt+17,existingRoutes,direction);
+    else controls=sampleBalancedProgression(context,count,usage,routeIndex,attempt,direction);
+    return {controls:ensureUniqueControls(controls,context,count,usage,direction),direction};
 }
 
-function sampleFromMasterOrder(order,count,usage,routeIndex,attempt){
-    if(!Array.isArray(order)||!order.length)return [];
-    const selected=[];
-    const used=new Set();
-    const n=order.length;
-    const phase=((routeIndex*2+attempt)%Math.max(1,n))/Math.max(1,n);
-    const span=Math.max(1,n-1);
-    for(let j=0;j<count;j++){
-        const base=(j+1)*(span/(count+1));
-        const wave=Math.sin((routeIndex+1)*1.7+(attempt+1)*0.31+j)*Math.min(2.2,n*.08);
-        let ideal=Math.round(base+phase*2.4+wave);
-        ideal=Math.max(0,Math.min(n-1,ideal));
-        let bestIdx=-1,bestScore=Infinity;
-        for(let radius=0;radius<n;radius++){
-            for(const idx of [ideal-radius,ideal+radius]){
-                if(idx<0||idx>=n)continue;
-                const c=order[idx];
-                if(used.has(c.id))continue;
-                const score=Math.abs(idx-ideal)+Math.pow((usage[c.id]||0),1.25)*1.8+Math.random()*.12;
-                if(score<bestScore){bestScore=score;bestIdx=idx;}
-            }
-            if(bestIdx>=0&&radius>3)break;
-        }
-        if(bestIdx>=0){selected.push(order[bestIdx]);used.add(order[bestIdx].id);}
-    }
+function routeDirectionForCandidate(context,routeIndex,attempt){
+    if(context.mode==="loop")return (routeIndex+Math.floor(attempt/11))%2===0?1:-1;
+    return attempt%37===0?-1:1;
+}
+
+function ensureUniqueControls(controls,context,count,usage,direction){
+    const selected=[],used=new Set();
+    (controls||[]).forEach(c=>{if(c&&!used.has(c.id)&&selected.length<count){selected.push(c);used.add(c.id);}});
     if(selected.length<count){
-        order.forEach(c=>{if(selected.length<count&&!used.has(c.id)){selected.push(c);used.add(c.id);}});
+        [...context.controls]
+            .sort((a,b)=>{
+                const ua=usage[a.id]||0,ub=usage[b.id]||0;
+                if(ua!==ub)return ua-ub;
+                return controlAnalysis(context,a,direction).t-controlAnalysis(context,b,direction).t;
+            })
+            .forEach(c=>{if(selected.length<count&&!used.has(c.id)){selected.push(c);used.add(c.id);}});
     }
     return selected;
 }
 
-function sampleByCorridorWindows(context,count,usage,routeIndex,attempt,laneMode=0){
-    const selected=[];
-    const used=new Set();
-    const laneBase=[-.55,.0,.55,.25,-.25][routeIndex%5];
-    const lane=(laneMode? -laneBase:laneBase)+Math.sin(routeIndex*1.31+attempt*.17)*.18;
-    const shift=((routeIndex%7)-3)*0.012 + Math.sin(attempt*.41)*0.018;
+function sampleProgressionWindows(context,count,usage,routeIndex,attempt,existingRoutes,direction){
+    const selected=[],used=new Set();
+    const lanes=context.mode==="loop"?[-0.45,0.15,0.55,-0.1,0.35]:[-0.65,-0.32,0,0.32,0.65,0.16,-0.16];
+    const lane=lanes[(routeIndex+Math.floor(attempt/5))%lanes.length];
+    const shift=((routeIndex%7)-3)*0.012+Math.sin((attempt+1)*0.73)*0.018;
+    let prev=context.start;
+    let prevT=0;
+    let prevSide=0;
 
     for(let j=0;j<count;j++){
-        const idealT=Math.max(.02,Math.min(.98,(j+1)/(count+1)+shift));
+        const idealT=Math.max(0.015,Math.min(0.985,(j+1)/(count+1)+shift));
         let best=null;
         context.controls.forEach(c=>{
             if(used.has(c.id))return;
-            const a=controlAnalysis(context,c);
-            const tPenalty=Math.abs(a.t-idealT)*4.4;
-            const sidePenalty=Math.abs((a.sideNorm||0)-lane)*0.55;
-            const edgePenalty=(a.t<-.12||a.t>1.12)?2.0:0;
-            const usePenalty=Math.pow((usage[c.id]||0),1.35)*0.48;
-            const score=tPenalty+sidePenalty+edgePenalty+usePenalty+Math.random()*0.16;
-            if(!best||score<best.score)best={c,score};
+            const a=controlAnalysis(context,c,direction);
+            const progressBack=Math.max(0,prevT-a.t);
+            const d=haversineKm(prev,c);
+            const tPenalty=Math.abs(a.t-idealT)*7.0;
+            const sidePenalty=Math.abs((a.sideNorm||0)-lane)*(context.mode==="loop"?0.42:0.75);
+            const sideJump=Math.abs((a.sideNorm||0)-prevSide)*0.38;
+            const edgePenalty=(a.t<-.04||a.t>1.04)?8:0;
+            const usagePenalty=Math.pow((usage[c.id]||0),1.45)*1.15;
+            const pairPenalty=pairOverlapPenalty(prev.id,c.id,existingRoutes)*1.8;
+            const score=tPenalty+progressBack*80+d*0.22+sidePenalty+sideJump+edgePenalty+usagePenalty+pairPenalty+Math.random()*0.06;
+            if(!best||score<best.score)best={c,score,a};
         });
+        if(best){
+            selected.push(best.c);used.add(best.c.id);prev=best.c;prevT=Math.max(prevT,best.a.t);prevSide=best.a.sideNorm||0;
+        }
+    }
+    return selected;
+}
+
+function sampleSmoothGreedy(context,count,usage,routeIndex,attempt,existingRoutes,direction){
+    const selected=[],used=new Set();
+    const laneWave=Math.sin(routeIndex*1.19+attempt*.13)*0.38;
+    let current=context.start;
+    let prevT=0;
+    let prevSide=0;
+    for(let j=0;j<count;j++){
+        const idealT=(j+1)/(count+1);
+        let best=null;
+        context.controls.forEach(c=>{
+            if(used.has(c.id))return;
+            const a=controlAnalysis(context,c,direction);
+            const back=Math.max(0,prevT-a.t);
+            const d=haversineKm(current,c);
+            const tPenalty=Math.abs(a.t-idealT)*5.6;
+            const progressPenalty=back*95;
+            const sideContinuity=Math.abs((a.sideNorm||0)-prevSide)*0.62;
+            const lanePenalty=Math.abs((a.sideNorm||0)-laneWave)*0.28;
+            const usagePenalty=Math.pow((usage[c.id]||0),1.42)*1.05;
+            const pairPenalty=pairOverlapPenalty(current.id,c.id,existingRoutes)*2.0;
+            const score=d*0.62+tPenalty+progressPenalty+sideContinuity+lanePenalty+usagePenalty+pairPenalty+Math.random()*0.05;
+            if(!best||score<best.score)best={c,score,a};
+        });
+        if(best){
+            selected.push(best.c);used.add(best.c.id);current=best.c;prevT=Math.max(prevT,best.a.t);prevSide=best.a.sideNorm||0;
+        }
+    }
+    return selected;
+}
+
+function sampleBalancedProgression(context,count,usage,routeIndex,attempt,direction){
+    const ordered=[...context.controls].sort((a,b)=>controlAnalysis(context,a,direction).t-controlAnalysis(context,b,direction).t);
+    const selected=[],used=new Set();
+    const offset=(routeIndex*3+attempt)%Math.max(1,ordered.length);
+    for(let j=0;j<count;j++){
+        const ideal=Math.round((j+1)*ordered.length/(count+1));
+        let best=null;
+        for(let radius=0;radius<ordered.length;radius++){
+            const indexes=[ideal+radius+offset%3-1,ideal-radius+offset%3-1];
+            for(const rawIdx of indexes){
+                const idx=Math.max(0,Math.min(ordered.length-1,rawIdx));
+                const c=ordered[idx];
+                if(!c||used.has(c.id))continue;
+                const score=radius+Math.pow((usage[c.id]||0),1.35)*2.2+Math.random()*0.04;
+                if(!best||score<best.score)best={c,score};
+            }
+            if(best&&radius>3)break;
+        }
         if(best){selected.push(best.c);used.add(best.c.id);}
     }
-    if(selected.length<count){
-        sampleBalancedByUsage(context,count,usage,routeIndex,attempt).forEach(c=>{
-            if(selected.length<count&&!used.has(c.id)){selected.push(c);used.add(c.id);}
-        });
-    }
     return selected;
 }
 
-function sampleBalancedByUsage(context,count,usage,routeIndex,attempt){
-    const pool=[...context.controls].sort((a,b)=>{
-        const ua=usage[a.id]||0,ub=usage[b.id]||0;
-        if(ua!==ub)return ua-ub;
-        const ta=Math.abs((controlAnalysis(context,a).t||0)-.5);
-        const tb=Math.abs((controlAnalysis(context,b).t||0)-.5);
-        return ta-tb;
-    });
-    const selected=[];
-    const used=new Set();
-    const stride=Math.max(1,Math.floor(pool.length/Math.max(1,count)));
-    let idx=(routeIndex+attempt)%Math.max(1,pool.length);
-    while(selected.length<count&&used.size<pool.length){
-        const c=pool[idx%pool.length];
-        if(!used.has(c.id)){selected.push(c);used.add(c.id);}
-        idx+=stride;
-    }
-    return selected;
-}
-
-function orderControlsSmart(start,controls,finish,seed=0,context=null){
+function orderControlsSmart(start,controls,finish,seed=0,context=null,direction=1){
     if(!controls.length)return [];
     context=context||buildProfessionalRouteContext(start,controls,finish);
-    const candidates=[];
-    candidates.push(orderByProjection(start,controls,finish));
-    candidates.push(orderByCorridorSnake(start,controls,finish,context,1));
-    candidates.push(orderByCorridorSnake(start,controls,finish,context,-1));
-    candidates.push(orderByNearestWithLookahead(start,controls,finish,context));
-    candidates.push(orderByAngleSweep(start,controls,finish,seed));
-    if(seed%9===0)candidates.push([...orderByProjection(start,controls,finish)].reverse());
-
-    let best=null;
-    candidates.forEach(c=>{
-        const improved=twoOptImprove([start,...c,finish]).slice(1,-1);
-        const route=[start,...improved,finish];
-        const score=professionalRouteScore(route,context)+routeDistanceKm(route)*0.025;
-        if(!best||score<best.score)best={ordered:improved,score};
-    });
-    return best?best.ordered:controls;
-}
-
-function orderByProjection(start,controls,finish){
-    const axis=routeAxis(start,finish);
-    return [...controls].sort((a,b)=>{
-        const aa=projectOnRouteAxis(axis,a),bb=projectOnRouteAxis(axis,b);
-        return aa.t-bb.t || Math.abs(aa.side)-Math.abs(bb.side);
-    });
-}
-
-function orderByCorridorSnake(start,controls,finish,context=null,sideDirection=1){
-    context=context||buildProfessionalRouteContext(start,controls,finish);
-    const sorted=[...controls].sort((a,b)=>controlAnalysis(context,a).t-controlAnalysis(context,b).t);
-    const bucketCount=Math.max(2,Math.ceil(Math.sqrt(sorted.length)));
-    const buckets=Array.from({length:bucketCount},()=>[]);
-    sorted.forEach(c=>{
-        const t=Math.max(0,Math.min(0.999,controlAnalysis(context,c).t));
-        buckets[Math.min(bucketCount-1,Math.floor(t*bucketCount))].push(c);
-    });
-    const out=[];
-    buckets.forEach((bucket,i)=>{
-        bucket.sort((a,b)=>{
-            const sa=controlAnalysis(context,a).sideNorm||0;
-            const sb=controlAnalysis(context,b).sideNorm||0;
-            return (i%2===0?sideDirection:-sideDirection)*(sa-sb);
-        });
-        out.push(...bucket);
-    });
-    return out;
-}
-
-function orderByAngleSweep(start,controls,finish,seed=0){
-    const pts=[start,...controls,finish];
-    const center={
-        lat:pts.reduce((s,p)=>s+p.lat,0)/pts.length,
-        lon:pts.reduce((s,p)=>s+p.lon,0)/pts.length
-    };
-    const offset=(seed%11)*0.11;
-    const ordered=[...controls].sort((a,b)=>{
-        const aa=Math.atan2(a.lat-center.lat,a.lon-center.lon)+offset;
-        const bb=Math.atan2(b.lat-center.lat,b.lon-center.lon)+offset;
-        return aa-bb;
-    });
-    const normal=[...ordered],reversed=[...ordered].reverse();
-    const s1=professionalRouteScore([start,...normal,finish])+routeDistanceKm([start,...normal,finish])*.03;
-    const s2=professionalRouteScore([start,...reversed,finish])+routeDistanceKm([start,...reversed,finish])*.03;
-    return s1<=s2?normal:reversed;
-}
-
-function orderByNearestWithLookahead(start,controls,finish,context=null){
-    context=context||buildProfessionalRouteContext(start,controls,finish);
-    const remaining=[...controls],ordered=[];
+    const sorted=[...controls].sort((a,b)=>controlAnalysis(context,a,direction).t-controlAnalysis(context,b,direction).t);
+    const grouped=groupControlsByProgress(sorted,context,direction);
+    let ordered=[];
     let current=start;
-    while(remaining.length){
-        let bestIdx=0,bestScore=Infinity;
-        remaining.forEach((p,idx)=>{
-            const dNow=haversineKm(current,p);
-            const dFinish=haversineKm(p,finish);
-            const projectionPenalty=backtrackProjectionPenalty(start,finish,current,p);
-            const t=controlAnalysis(context,p).t;
-            const expectedT=(ordered.length+1)/(controls.length+1);
-            const progressPenalty=Math.abs(t-expectedT)*0.45;
-            const nextScore=dNow + dFinish*.055 + projectionPenalty*5.0 + progressPenalty;
-            if(nextScore<bestScore){bestScore=nextScore;bestIdx=idx;}
-        });
-        const next=remaining.splice(bestIdx,1)[0];
-        ordered.push(next);
-        current=next;
+    grouped.forEach(group=>{
+        const local=[...group];
+        while(local.length){
+            let bestIdx=0,bestScore=Infinity;
+            local.forEach((p,idx)=>{
+                const a=controlAnalysis(context,p,direction);
+                const d=haversineKm(current,p);
+                const prevA=current===start?{sideNorm:0}:controlAnalysis(context,current,direction);
+                const side=Math.abs((a.sideNorm||0)-(prevA.sideNorm||0));
+                const score=d+side*0.18+Math.random()*0.0001;
+                if(score<bestScore){bestScore=score;bestIdx=idx;}
+            });
+            const next=local.splice(bestIdx,1)[0];
+            ordered.push(next);current=next;
+        }
+    });
+
+    ordered=smoothAdjacentImprove([start,...ordered,finish],context,direction).slice(1,-1);
+
+    const normalRoute=[start,...ordered,finish];
+    const reversed=[...ordered].reverse();
+    const reverseRoute=[start,...reversed,finish];
+    const normalQ=routeQualityDetails(normalRoute,context,direction);
+    const reverseQ=routeQualityDetails(reverseRoute,context,-direction);
+    if(context.mode==="loop" && reverseQ.total<normalQ.total*.92 && reverseQ.hardBacktracks===0 && reverseQ.crossings===0){
+        return reversed;
+    }
+    if(context.mode!=="loop" && reverseQ.total<normalQ.total*.72 && reverseQ.hardBacktracks===0 && reverseQ.crossings===0){
+        return reversed;
     }
     return ordered;
 }
 
-function backtrackProjectionPenalty(start,finish,a,b){
-    const axis=routeAxis(start,finish);
-    const ta=projectOnRouteAxis(axis,a).t;
-    const tb=projectOnRouteAxis(axis,b).t;
-    return Math.max(0,ta-tb);
+function groupControlsByProgress(sorted,context,direction){
+    const groups=[];
+    const threshold=context.mode==="loop"?0.075:0.055;
+    sorted.forEach(c=>{
+        const t=controlAnalysis(context,c,direction).t;
+        const last=groups[groups.length-1];
+        if(!last){groups.push([c]);return;}
+        const lastT=controlAnalysis(context,last[last.length-1],direction).t;
+        if(Math.abs(t-lastT)<=threshold)last.push(c);
+        else groups.push([c]);
+    });
+    return groups;
 }
 
-function twoOptImprove(route){
-    let best=[...route],bestScore=professionalRouteScore(best)+routeDistanceKm(best)*0.03,improved=true,loops=0;
-    while(improved&&loops<26){
+function smoothAdjacentImprove(route,context,direction){
+    let best=[...route];
+    let bestQ=routeQualityDetails(best,context,direction).total+routeDistanceKm(best)*0.04;
+    let improved=true,loops=0;
+    while(improved&&loops<5){
         improved=false;loops++;
         for(let i=1;i<best.length-2;i++){
-            for(let k=i+1;k<best.length-1;k++){
-                const candidate=best.slice(0,i).concat(best.slice(i,k+1).reverse(),best.slice(k+1));
-                const score=professionalRouteScore(candidate)+routeDistanceKm(candidate)*0.03;
-                if(score+0.0001<bestScore){
-                    best=candidate;
-                    bestScore=score;
-                    improved=true;
-                }
+            const candidate=[...best];
+            const tmp=candidate[i];candidate[i]=candidate[i+1];candidate[i+1]=tmp;
+            const q=routeQualityDetails(candidate,context,direction);
+            const score=q.total+routeDistanceKm(candidate)*0.04;
+            if(q.progressPenalty<=routeQualityDetails(best,context,direction).progressPenalty+0.02 && score+0.0001<bestQ){
+                best=candidate;bestQ=score;improved=true;
             }
         }
     }
@@ -1046,14 +1074,10 @@ function routeDistanceKm(route){
     return d;
 }
 
-function professionalRouteScore(route,context=null){
-    const shape=routeShapePenalty(route);
-    return shape.total;
-}
-
-function routeShapePenalty(route){
-    let crossings=0,backtracks=0,sharpTurns=0,nearRevisits=0,zigzags=0,longLegPenalty=0,lateralJumpPenalty=0;
-    if(!route||route.length<3)return {total:0,crossings:0,backtracks:0,sharpTurns:0,nearRevisits:0,zigzags:0,longLegPenalty:0,lateralJumpPenalty:0};
+function routeQualityDetails(route,context=null,direction=1){
+    context=context||buildProfessionalRouteContext(route[0],route.slice(1,-1),route[route.length-1]);
+    let crossings=0,backtracks=0,hardBacktracks=0,turnPenalty=0,zigzags=0,nearRevisits=0,longLegPenalty=0,lateralJumpPenalty=0,edgePenalty=0;
+    if(!route||route.length<3)return {total:0,label:"Recorrido limpio",code:"clean",crossings:0,backtracks:0,hardBacktracks:0};
 
     for(let i=0;i<route.length-3;i++){
         for(let j=i+2;j<route.length-1;j++){
@@ -1062,57 +1086,71 @@ function routeShapePenalty(route){
         }
     }
 
-    const axis=routeAxis(route[0],route[route.length-1]);
-    const projections=route.map(p=>projectOnRouteAxis(axis,p));
+    const progress=route.map((p,i)=>routePointProgress(context,p,direction,i,route.length-1));
+    const sideVals=route.map((p,i)=>{
+        if(i===0||i===route.length-1)return 0;
+        return controlAnalysis(context,p,direction).sideNorm||0;
+    });
     const legDistances=[];
     for(let i=1;i<route.length;i++)legDistances.push(haversineKm(route[i-1],route[i]));
     const avgLeg=legDistances.reduce((a,b)=>a+b,0)/Math.max(1,legDistances.length);
     const longest=Math.max(...legDistances,0);
-    if(avgLeg>0&&longest>avgLeg*2.35)longLegPenalty=(longest/avgLeg-2.35);
+    if(avgLeg>0&&longest>avgLeg*2.15)longLegPenalty=(longest/avgLeg-2.15);
 
     for(let i=1;i<route.length-1;i++){
         const ang=turnAngle(route[i-1],route[i],route[i+1]);
-        if(ang<55)sharpTurns+=(55-ang)/55;
-        const dt=projections[i].t-projections[i-1].t;
-        if(dt<-0.035)backtracks+=Math.min(3,Math.abs(dt)*7);
-        const sidePrev=projections[i-1].side;
-        const sideNow=projections[i].side;
-        const sideNext=projections[i+1]?.side||0;
-        if(Math.sign(sidePrev)!==0&&Math.sign(sideNext)!==0&&Math.sign(sidePrev)!==Math.sign(sideNext)&&Math.abs(sideNow)>Math.abs(axis.len)*0.00015){
-            zigzags+=0.7;
-        }
-        const lateralJump=Math.abs(sideNow-sidePrev);
-        if(lateralJump>axis.len*.38)lateralJumpPenalty+=(lateralJump/(axis.len||1)-.38);
+        const deflection=180-ang;
+        if(deflection>105)turnPenalty+=(deflection-105)/55;
+        if(ang<68)turnPenalty+=(68-ang)/68*1.8;
+        const dt=progress[i]-progress[i-1];
+        if(dt<-0.012){backtracks+=Math.abs(dt);if(dt<-0.055)hardBacktracks++;}
+        if(progress[i]<-0.08||progress[i]>1.08)edgePenalty+=1;
+        const sp=sideVals[i-1],sn=sideVals[i],sx=sideVals[i+1]||0;
+        if(Math.sign(sp)!==0&&Math.sign(sx)!==0&&Math.sign(sp)!==Math.sign(sx)&&Math.abs(sn)>.18)zigzags+=1;
+        const lateralJump=Math.abs(sn-sp);
+        if(lateralJump>0.95)lateralJumpPenalty+=lateralJump-0.95;
     }
 
     for(let i=1;i<route.length-1;i++){
         for(let j=i+2;j<route.length-1;j++){
             const d=haversineKm(route[i],route[j]);
-            if(d<0.16)nearRevisits+=(0.16-d)/0.16;
+            if(d<0.14)nearRevisits+=(0.14-d)/0.14;
         }
     }
 
-    const total=crossings*7.0+backtracks*3.1+sharpTurns*1.35+zigzags*1.05+nearRevisits*2.2+longLegPenalty*1.4+lateralJumpPenalty*1.1;
-    return {total,crossings,backtracks:Number(backtracks.toFixed(2)),sharpTurns:Number(sharpTurns.toFixed(2)),nearRevisits:Number(nearRevisits.toFixed(2)),zigzags:Number(zigzags.toFixed(2)),longLegPenalty:Number(longLegPenalty.toFixed(2)),lateralJumpPenalty:Number(lateralJumpPenalty.toFixed(2))};
+    const progressPenalty=backtracks*120+hardBacktracks*18;
+    const total=
+        crossings*90+
+        progressPenalty+
+        turnPenalty*22+
+        zigzags*9+
+        nearRevisits*10+
+        longLegPenalty*7+
+        lateralJumpPenalty*7+
+        edgePenalty*6;
+    const code=(crossings===0&&hardBacktracks===0&&total<28&&turnPenalty<1.35&&zigzags<=1)?"clean":((crossings<=1&&hardBacktracks<=1&&total<70)?"acceptable":"forced");
+    const label=code==="clean"?"Recorrido limpio":(code==="acceptable"?"Recorrido aceptable":"Recorrido forzado");
+    return {total,crossings,backtracks:Number(backtracks.toFixed(3)),hardBacktracks,turnPenalty:Number(turnPenalty.toFixed(2)),zigzags,nearRevisits:Number(nearRevisits.toFixed(2)),longLegPenalty:Number(longLegPenalty.toFixed(2)),lateralJumpPenalty:Number(lateralJumpPenalty.toFixed(2)),progressPenalty:Number(progressPenalty.toFixed(2)),label,code};
 }
 
 function turnAngle(a,b,c){
-    const v1={x:a.lon-b.lon,y:a.lat-b.lat};
-    const v2={x:c.lon-b.lon,y:c.lat-b.lat};
-    const dot=v1.x*v2.x+v1.y*v2.y;
-    const n1=Math.sqrt(v1.x*v1.x+v1.y*v1.y)||1;
-    const n2=Math.sqrt(v2.x*v2.x+v2.y*v2.y)||1;
+    const ax=Number(a.lon)-Number(b.lon),ay=Number(a.lat)-Number(b.lat);
+    const cx=Number(c.lon)-Number(b.lon),cy=Number(c.lat)-Number(b.lat);
+    const dot=ax*cx+ay*cy;
+    const n1=Math.sqrt(ax*ax+ay*ay)||1;
+    const n2=Math.sqrt(cx*cx+cy*cy)||1;
     const cos=Math.max(-1,Math.min(1,dot/(n1*n2)));
     return Math.acos(cos)*180/Math.PI;
 }
 
 function segmentsIntersect(a,b,c,d){
+    if(!a||!b||!c||!d)return false;
     const o1=orient(a,b,c),o2=orient(a,b,d),o3=orient(c,d,a),o4=orient(c,d,b);
     return o1*o2<0&&o3*o4<0;
 }
 
 function orient(a,b,c){
-    return (b.lon-a.lon)*(c.lat-a.lat)-(b.lat-a.lat)*(c.lon-a.lon);
+    return (Number(b.lon)-Number(a.lon))*(Number(c.lat)-Number(a.lat))-(Number(b.lat)-Number(a.lat))*(Number(c.lon)-Number(a.lon));
 }
 
 function calcSequenceOverlapPenalty(orderedControls,existingRoutes){
@@ -1125,18 +1163,35 @@ function calcSequenceOverlapPenalty(orderedControls,existingRoutes){
             const rev=ids.slice(i,i+3).reverse().join("|");
             for(let j=0;j<ex.length-2;j++){
                 const other=ex.slice(j,j+3).join("|");
-                if(tri===other)penalty+=70;
-                else if(rev===other)penalty+=5;
+                const otherRev=ex.slice(j,j+3).reverse().join("|");
+                if(tri===other)penalty+=95;
+                else if(tri===otherRev||rev===other)penalty+=22;
             }
         }
         for(let i=0;i<ids.length-1;i++){
             const pair=ids.slice(i,i+2).join("|");
+            const pairRev=ids.slice(i,i+2).reverse().join("|");
             for(let j=0;j<ex.length-1;j++){
-                if(pair===ex.slice(j,j+2).join("|"))penalty+=2.2;
+                const op=ex.slice(j,j+2).join("|");
+                if(pair===op)penalty+=4.5;
+                else if(pairRev===op)penalty+=1.2;
             }
         }
     });
     return penalty;
+}
+
+function pairOverlapPenalty(a,b,existingRoutes){
+    if(!a||!b)return 0;
+    let p=0;
+    existingRoutes.forEach(r=>{
+        const ex=(r.controls||[]).map(c=>c.id);
+        for(let i=0;i<ex.length-1;i++){
+            if(ex[i]===a&&ex[i+1]===b)p+=1;
+            if(ex[i]===b&&ex[i+1]===a)p+=0.35;
+        }
+    });
+    return p;
 }
 
 function calcOverlapPenalty(orderedControls,existingRoutes){
@@ -1154,7 +1209,7 @@ function calcDistanceBalancePenalty(metrics,existingMetrics){
     const avg=existingMetrics.reduce((s,m)=>s+Number(m.distanceKm||0),0)/existingMetrics.length;
     if(!avg)return 0;
     const diff=Math.abs(Number(metrics.distanceKm||0)-avg)/avg;
-    return diff<.08?0:Math.pow(diff-.08,2)*18;
+    return diff<0.13?0:Math.pow(diff-0.13,2)*42;
 }
 
 function calcBalancePenalty(metrics,existingMetrics){
@@ -1165,8 +1220,20 @@ function calcBalancePenalty(metrics,existingMetrics){
     const climbDiff=Math.abs(metrics.positiveM-avgClimb)/Math.max(1,avgClimb||1);
     return distDiff*.5+climbDiff*.5;
 }
+
+function buildRouteQualitySummary(metrics){
+    const q={clean:0,acceptable:0,forced:0};
+    (metrics||[]).forEach(m=>{
+        const c=m.qualityCode||"acceptable";
+        if(c==="clean")q.clean++;
+        else if(c==="forced")q.forced++;
+        else q.acceptable++;
+    });
+    return q;
+}
 // SMART ROUTE GENERATOR END
-function calcRouteMetrics(route){let distance=0,pos=0,neg=0,longest=0;for(let i=1;i<route.length;i++){const a=route[i-1],b=route[i],d=haversineKm(a,b);distance+=d;longest=Math.max(longest,d);const diff=Number(b.elevation||0)-Number(a.elevation||0);if(diff>0)pos+=diff;else neg+=Math.abs(diff)}const global=Number(route[route.length-1].elevation||0)-Number(route[0].elevation||0),difficultyScore=distance*.5+(pos/1000)*.5;let difficulty="MEDIA";if(difficultyScore<3.5)difficulty="BAJA";if(difficultyScore>7.5)difficulty="ALTA";return{distanceKm:Number(distance.toFixed(3)),longestKm:Number(longest.toFixed(3)),positiveM:Math.round(pos),negativeM:Math.round(neg),globalM:Math.round(global),difficulty,difficultyScore:Number(difficultyScore.toFixed(3))}}function calcOverlapPenalty(orderedControls,existingRoutes){const ids=new Set(orderedControls.map(c=>c.id));let penalty=0;existingRoutes.forEach(r=>{const routeIds=new Set(r.controls.map(c=>c.id));ids.forEach(id=>{if(routeIds.has(id))penalty++})});return penalty}function calcBalancePenalty(metrics,existingMetrics){if(!existingMetrics.length)return 0;const avgDist=existingMetrics.reduce((s,m)=>s+m.distanceKm,0)/existingMetrics.length,avgClimb=existingMetrics.reduce((s,m)=>s+m.positiveM,0)/existingMetrics.length,distDiff=Math.abs(metrics.distanceKm-avgDist)/Math.max(1,avgDist),climbDiff=Math.abs(metrics.positiveM-avgClimb)/Math.max(1,avgClimb||1);return distDiff*.5+climbDiff*.5}
+
+function calcRouteMetrics(route){let distance=0,pos=0,neg=0,longest=0;for(let i=1;i<route.length;i++){const a=route[i-1],b=route[i],d=haversineKm(a,b);distance+=d;longest=Math.max(longest,d);const diff=Number(b.elevation||0)-Number(a.elevation||0);if(diff>0)pos+=diff;else neg+=Math.abs(diff)}const global=Number(route[route.length-1].elevation||0)-Number(route[0].elevation||0),difficultyScore=distance*.5+(pos/1000)*.5;let difficulty="MEDIA";if(difficultyScore<3.5)difficulty="BAJA";if(difficultyScore>7.5)difficulty="ALTA";return{distanceKm:Number(distance.toFixed(3)),longestKm:Number(longest.toFixed(3)),positiveM:Math.round(pos),negativeM:Math.round(neg),globalM:Math.round(global),difficulty,difficultyScore:Number(difficultyScore.toFixed(3))}}
 // BALANCED DIFFICULTY BUCKETS START
 function assignBalancedDifficulties(metrics){
     if(!Array.isArray(metrics)||!metrics.length) return;
@@ -1184,7 +1251,50 @@ function assignBalancedDifficulties(metrics){
     state.difficultyBuckets={total:n,faciles,medias,dificiles:n-faciles-medias};
 }
 // BALANCED DIFFICULTY BUCKETS END
-function renderRoutes(){const grid=document.getElementById("routesGrid");grid.innerHTML="";if(!state.routes.length)return;const dists=state.metrics.map(m=>m.distanceKm),climbs=state.metrics.map(m=>m.positiveM),avgD=avg(dists).toFixed(3),avgC=Math.round(avg(climbs));const warnings=Array.isArray(state.routeWarnings)?state.routeWarnings:[];const buckets=state.difficultyBuckets||{};const reparto=buckets.total?` · dificultad equilibrada: ${buckets.faciles} fácil / ${buckets.medias} media / ${buckets.dificiles} difícil`:"";document.getElementById("routeSummary").className=warnings.length?"status warn":"status ok";document.getElementById("routeSummary").innerHTML=`✅ ${state.routes.length} recorridos generados · distancia media ${avgD} km · desnivel positivo medio ${avgC} m · trazado lógico · sin zigzag innecesario · coincidencias minimizadas${reparto}.${warnings.length?`<br><br>⚠️ Aviso: ${warnings.length} recorrido(s) salen forzados. Prueba a mover puntos, aumentar balizas disponibles o reducir balizas por recorrido.<br>${warnings.slice(0,4).join("<br>")}`:""}`;state.routes.forEach((r,i)=>{const m=state.metrics[i],div=document.createElement("div");div.className="route-card";div.innerHTML=`<div class="route-title"><span>${r.routeId} · ${r.participantId}</span><span>${m.difficulty}</span></div><div class="metric-grid"><div class="metric"><small>Distancia</small><b>${m.distanceKm} km</b></div><div class="metric"><small>Tramo largo</small><b>${m.longestKm} km</b></div><div class="metric"><small>Desnivel +</small><b>${m.positiveM} m</b></div><div class="metric"><small>Desnivel -</small><b>${m.negativeM} m</b></div><div class="metric"><small>Global</small><b>${m.globalM} m</b></div><div class="metric"><small>Dificultad</small><b>${m.difficulty}</b></div></div><div class="route-line">${r.points.join(" → ")}</div><div class="btn-row"><button class="btn secondary" onclick="previewRoute(${i})">🗺️ VER EN PLANO</button></div>`;grid.appendChild(div)})}function avg(arr){return arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0}let step3RouteMap=null,step3RouteBaseLayer=null,step3RouteLayers={},step3RouteMarkers=null,step3RouteLines=null;
+function renderRoutes(){
+    const grid=document.getElementById("routesGrid");
+    if(!grid)return;
+    grid.innerHTML="";
+    if(!state.routes.length)return;
+
+    const dists=state.metrics.map(m=>Number(m.distanceKm||0));
+    const climbs=state.metrics.map(m=>Number(m.positiveM||0));
+    const avgD=avg(dists).toFixed(3);
+    const avgC=Math.round(avg(climbs));
+    const warnings=Array.isArray(state.routeWarnings)?state.routeWarnings:[];
+    const buckets=state.difficultyBuckets||{};
+    const q=state.routeQualitySummary||buildRouteQualitySummary(state.metrics||[]);
+    const reparto=buckets.total?` · dificultad equilibrada: ${buckets.faciles} fácil / ${buckets.medias} media / ${buckets.dificiles} difícil`:"";
+    const calidad=` · calidad: ${q.clean||0} limpios / ${q.acceptable||0} aceptables / ${q.forced||0} forzados`;
+    const hasForced=(q.forced||0)>0 || warnings.some(w=>/forzado/i.test(w));
+    const routeSummary=document.getElementById("routeSummary");
+    if(routeSummary){
+        routeSummary.className=hasForced?"status warn":"status ok";
+        routeSummary.innerHTML=`✅ ${state.routes.length} recorridos generados · distancia media ${avgD} km · desnivel positivo medio ${avgC} m · trazado lógico profesional · sin zigzag innecesario · coincidencias de tramos minimizadas${reparto}${calidad}.${warnings.length?`<br><br>⚠️ Avisos de calidad:<br>${warnings.slice(0,6).map(escapeHtml).join("<br>")}`:""}`;
+    }
+
+    state.routes.forEach((r,i)=>{
+        const m=state.metrics[i]||{};
+        const div=document.createElement("div");
+        div.className="route-card";
+        const quality=m.quality||"Recorrido aceptable";
+        const qClass=m.qualityCode==="clean"?"ok":(m.qualityCode==="forced"?"err":"warn");
+        div.innerHTML=`<div class="route-title"><span>${escapeHtml(r.routeId)} · ${escapeHtml(r.participantId)}</span><span>${escapeHtml(m.difficulty||"MEDIA")}</span></div>
+            <div class="metric-grid">
+                <div class="metric"><small>Distancia</small><b>${escapeHtml(m.distanceKm||"--")} km</b></div>
+                <div class="metric"><small>Tramo largo</small><b>${escapeHtml(m.longestKm||"--")} km</b></div>
+                <div class="metric"><small>Desnivel +</small><b>${escapeHtml(m.positiveM||0)} m</b></div>
+                <div class="metric"><small>Desnivel -</small><b>${escapeHtml(m.negativeM||0)} m</b></div>
+                <div class="metric"><small>Dificultad</small><b>${escapeHtml(m.difficulty||"MEDIA")}</b></div>
+                <div class="metric"><small>Calidad</small><b>${escapeHtml(quality)}</b></div>
+            </div>
+            <div class="status ${qClass}" style="margin-top:10px;">${escapeHtml(quality)}${m.routeMode?` · ${escapeHtml(m.routeMode)}`:""}</div>
+            <div class="route-line">${r.points.map(escapeHtml).join(" → ")}</div>
+            <div class="btn-row"><button class="btn secondary" onclick="previewRoute(${i})">🗺️ VER EN PLANO</button></div>`;
+        grid.appendChild(div);
+    });
+}
+function avg(arr){return arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0}let step3RouteMap=null,step3RouteBaseLayer=null,step3RouteLayers={},step3RouteMarkers=null,step3RouteLines=null;
 
 function previewRoute(idx){
     if(!state.routes[idx])return;
