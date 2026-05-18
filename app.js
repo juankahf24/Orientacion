@@ -1286,7 +1286,7 @@ function renderRoutes(){
                 <div class="metric"><small>Desnivel +</small><b>${escapeHtml(m.positiveM||0)} m</b></div>
                 <div class="metric"><small>Desnivel -</small><b>${escapeHtml(m.negativeM||0)} m</b></div>
                 <div class="metric"><small>Dificultad</small><b>${escapeHtml(m.difficulty||"MEDIA")}</b></div>
-                <div class="metric"><small>Calidad</small><b>${escapeHtml(quality)}</b></div>
+                <div class="metric"><small>Desnivel global</small><b>${Number(m.globalM||0)>0?"+":""}${escapeHtml(m.globalM||0)} m</b></div>
             </div>
             <div class="status ${qClass}" style="margin-top:10px;">${escapeHtml(quality)}${m.routeMode?` · ${escapeHtml(m.routeMode)}`:""}</div>
             <div class="route-line">${r.points.map(escapeHtml).join(" → ")}</div>
