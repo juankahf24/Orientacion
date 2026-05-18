@@ -1,6 +1,6 @@
 const state={eventId:"",eventName:"ENTRENAMIENTO ORIENTACIÓN",
     planScale:10000,
-    planEquidistanceM:5,participantCount:10,controlCount:25,controlsPerRoute:8,maxControlReuse:6,points:{},routes:[],metrics:[],elevations:{},participantLogs:{},participantNames:{},importedResults:[]};let map=null,layers={},currentLayer=null,markersLayer=null,routeLayer=null,userLocationMarker=null,userAccuracyCircle=null,selectedPointId="START";let currentAppStep=1;let __autoSaveTimer=null;let selectedIofPointId="START";
+    planEquidistanceM:5,participantCount:10,controlCount:25,controlsPerRoute:8,maxControlReuse:6,points:{},routes:[],metrics:[],elevations:{},participantLogs:{},participantNames:{},skippedRoutes:{},importedResults:[]};let map=null,layers={},currentLayer=null,markersLayer=null,routeLayer=null,userLocationMarker=null,userAccuracyCircle=null,selectedPointId="START";let currentAppStep=1;let __autoSaveTimer=null;let selectedIofPointId="START";
 
 function createFreshEventId(){
     return "ORI_"+new Date().toISOString().slice(0,10).replaceAll("-","")+"_"+Math.random().toString(36).slice(2,7).toUpperCase();
@@ -22,6 +22,7 @@ function resetStateToFreshEvent(){
     state.elevations={};
     state.participantLogs={};
     state.participantNames={};
+    state.skippedRoutes={};
     state.importedResults=[];
     state.iofDescriptions={};
     state.routeWarnings=[];
@@ -759,6 +760,7 @@ async function generateRoutes(silent=false){
         points:x.route.map(p=>p.id)
     }));
     state.metrics=routes.map(x=>x.metrics);
+    state.skippedRoutes={};
     assignBalancedDifficulties(state.metrics);
     state.routeQualitySummary=buildRouteQualitySummary(state.metrics);
     state.routeWarnings=qualityWarnings;
@@ -1555,6 +1557,7 @@ function ensureParticipantNameUi(){
     if(oldFinishField)oldFinishField.remove();
 
     refreshParticipantNameInputs();
+    ensureRouteDiscardUi();
 }
 
 function refreshParticipantNameInputs(){
@@ -1569,6 +1572,164 @@ function saveStartParticipantNameNow(){
     const input=document.getElementById("startParticipantNameInput");
     if(sel&&input)setParticipantName(sel.value,input.value);
 }
+function ensureSkippedRoutesStore(){
+    if(!state.skippedRoutes || typeof state.skippedRoutes!=="object" || Array.isArray(state.skippedRoutes))state.skippedRoutes={};
+    return state.skippedRoutes;
+}
+
+function routeAssignmentKey(routeOrPid,routeId=""){
+    let route=null;
+    if(routeOrPid && typeof routeOrPid==="object")route=routeOrPid;
+    else route=getRouteByParticipant(String(routeOrPid||""));
+    const pid=String(route?.participantId||routeOrPid||"");
+    const rid=String(route?.routeId||routeId||"");
+    return `${pid}__${rid}`;
+}
+
+function isRouteSkipped(routeOrPid,routeId=""){
+    const skipped=ensureSkippedRoutesStore();
+    const route=(routeOrPid && typeof routeOrPid==="object")?routeOrPid:getRouteByParticipant(String(routeOrPid||""));
+    if(route && skipped[routeAssignmentKey(route)])return true;
+    const pid=String(route?.participantId||routeOrPid||"");
+    const rid=String(route?.routeId||routeId||"");
+    return Object.values(skipped).some(x=>String(x.participantId||"")===pid && (!rid || String(x.routeId||"")===rid));
+}
+
+function activeRoutes(){
+    return (state.routes||[]).filter(route=>!isRouteSkipped(route));
+}
+
+function skippedRoutesList(){
+    ensureSkippedRoutesStore();
+    return (state.routes||[]).filter(route=>isRouteSkipped(route));
+}
+
+function isResultForSkippedRoute(result){
+    if(!result)return false;
+    const route=(state.routes||[]).find(r=>String(r.participantId||"")===String(result.participantId||"") || String(r.routeId||"")===String(result.routeId||""));
+    return route?isRouteSkipped(route):false;
+}
+
+function activeImportedResults(){
+    ensureImportedResultsStore();
+    return (state.importedResults||[]).filter(r=>!isResultForSkippedRoute(r));
+}
+
+function setRouteSkipped(pid,skipped=true){
+    const route=getRouteByParticipant(pid);
+    if(!route)return false;
+    const store=ensureSkippedRoutesStore();
+    const key=routeAssignmentKey(route);
+    if(skipped){
+        store[key]={participantId:route.participantId,routeId:route.routeId,discardedAt:new Date().toISOString(),reason:"organizer"};
+        state.importedResults=(state.importedResults||[]).filter(r=>String(r.participantId||"")!==String(route.participantId||""));
+        if(state.participantLogs)delete state.participantLogs[route.participantId];
+    }else{
+        delete store[key];
+    }
+    saveState();
+    updateOrganizerParticipantSelects();
+    renderResultsControl();
+    renderImportedResults();
+    return true;
+}
+
+function findNextAssignableRouteIndex(fromIndex=organizerStartIndex){
+    const routes=state.routes||[];
+    if(!routes.length)return -1;
+    for(let offset=1;offset<=routes.length;offset++){
+        const idx=(fromIndex+offset)%routes.length;
+        if(!isRouteSkipped(routes[idx]))return idx;
+    }
+    return -1;
+}
+
+function ensureRouteDiscardUi(){
+    const nextBtn=document.querySelector('button[onclick="nextStartFlowParticipant()"]');
+    if(nextBtn && !document.getElementById("discardStartRouteBtn")){
+        const btn=document.createElement("button");
+        btn.id="discardStartRouteBtn";
+        btn.className="btn red";
+        btn.style.cssText="margin-top:10px;width:100%;";
+        btn.onclick=discardCurrentStartRoute;
+        nextBtn.insertAdjacentElement("afterend",btn);
+    }
+    const info=document.getElementById("startFlowInfo");
+    if(info && !document.getElementById("discardedRoutesInfo")){
+        const div=document.createElement("div");
+        div.id="discardedRoutesInfo";
+        div.className="status warn";
+        div.style.cssText="display:none;margin-top:10px;";
+        info.insertAdjacentElement("afterend",div);
+    }
+    updateRouteDiscardUi();
+}
+
+function updateRouteDiscardUi(){
+    const sel=document.getElementById("startFlowParticipantSelect");
+    const btn=document.getElementById("discardStartRouteBtn");
+    const info=document.getElementById("discardedRoutesInfo");
+    const route=sel&&sel.value?getRouteByParticipant(sel.value):null;
+    if(btn){
+        if(route&&isRouteSkipped(route)){
+            btn.textContent="↩️ REACTIVAR ESTE RECORRIDO";
+            btn.className="btn green";
+        }else{
+            btn.textContent="🚫 DESCARTAR / NO ASIGNAR ESTE RECORRIDO";
+            btn.className="btn red";
+        }
+    }
+    if(info){
+        const skipped=skippedRoutesList();
+        if(skipped.length){
+            info.style.display="block";
+            info.innerHTML=`Recorridos descartados por el organizador: <b>${skipped.length}</b><br>${skipped.map(r=>escapeHtml(`${r.participantId} · ${r.routeId}`)).join(" · ")}`;
+        }else{
+            info.style.display="none";
+            info.innerHTML="";
+        }
+    }
+}
+
+function discardCurrentStartRoute(){
+    const sel=document.getElementById("startFlowParticipantSelect");
+    if(!sel||!sel.value)return toast("Selecciona un recorrido");
+    const route=getRouteByParticipant(sel.value);
+    if(!route)return toast("No hay recorrido seleccionado");
+
+    if(isRouteSkipped(route)){
+        setRouteSkipped(route.participantId,false);
+        organizerStartIndex=(state.routes||[]).findIndex(r=>r.participantId===route.participantId);
+        const startSel=document.getElementById("startFlowParticipantSelect");
+        if(startSel)startSel.value=route.participantId;
+        showParticipantQrForStart();
+        toast(`Recorrido reactivado: ${route.participantId} · ${route.routeId}`);
+        return;
+    }
+
+    if(!confirm(`¿Descartar ${route.participantId} · ${route.routeId}?\n\nNo se entregará a nadie, no contará como pendiente y no entrará en resultados.`))return;
+    const currentIdx=(state.routes||[]).findIndex(r=>r.participantId===route.participantId);
+    setRouteSkipped(route.participantId,true);
+    toast(`Recorrido descartado: ${route.participantId} · ${route.routeId}`);
+
+    const nextIdx=findNextAssignableRouteIndex(currentIdx);
+    const startSel=document.getElementById("startFlowParticipantSelect");
+    if(nextIdx>=0){
+        organizerStartIndex=nextIdx;
+        if(startSel)startSel.value=state.routes[nextIdx].participantId;
+        showParticipantQrForStart();
+    }else{
+        if(startSel)startSel.value=route.participantId;
+        const info=document.getElementById("startFlowInfo");
+        const box=document.getElementById("organizerStartQrBox");
+        const payloadBox=document.getElementById("organizerStartPayload");
+        if(info){info.className="status warn";info.textContent="Todos los recorridos están descartados. Reactiva alguno para poder entregarlo.";}
+        if(box)box.innerHTML="QR pendiente";
+        if(payloadBox)payloadBox.textContent="";
+    }
+    updateRouteDiscardUi();
+}
+
 
 function resultParticipantName(resultOrPid){
     const pid=typeof resultOrPid==="string"?resultOrPid:(resultOrPid?.participantId||"");
@@ -1582,23 +1743,38 @@ let organizerStartIndex=0;
 
 function updateOrganizerParticipantSelects(opts={}){
     ensureParticipantNamesStore();
+    ensureSkippedRoutesStore();
     const startSel=document.getElementById("startFlowParticipantSelect");
     const finishSel=document.getElementById("finishFlowParticipantSelect");
 
-    [startSel,finishSel].forEach(sel=>{
-        if(!sel) return;
-        const current=sel.value;
-        sel.innerHTML="";
-        state.routes.forEach((r,i)=>{
+    if(startSel){
+        const current=startSel.value;
+        startSel.innerHTML="";
+        (state.routes||[]).forEach((r,i)=>{
+            const opt=document.createElement("option");
+            opt.value=r.participantId;
+            opt.textContent=participantDisplay(r.participantId,r.routeId)+(isRouteSkipped(r)?" · DESCARTADO":"");
+            if(isRouteSkipped(r))opt.dataset.discarded="1";
+            startSel.appendChild(opt);
+        });
+        if(current && [...startSel.options].some(o=>o.value===current)) startSel.value=current;
+    }
+
+    if(finishSel){
+        const current=finishSel.value;
+        finishSel.innerHTML="";
+        activeRoutes().forEach((r,i)=>{
             const opt=document.createElement("option");
             opt.value=r.participantId;
             opt.textContent=participantDisplay(r.participantId,r.routeId);
-            sel.appendChild(opt);
+            finishSel.appendChild(opt);
         });
-        if(current && [...sel.options].some(o=>o.value===current)) sel.value=current;
-    });
+        if(current && [...finishSel.options].some(o=>o.value===current)) finishSel.value=current;
+    }
+
     ensureParticipantNameUi();
     refreshParticipantNameInputs();
+    updateRouteDiscardUi();
 }
 
 function getRouteByParticipant(pid){
@@ -1646,8 +1822,23 @@ function prepareStartFlow(){
         return;
     }
 
-    organizerStartIndex=Math.min(organizerStartIndex,state.routes.length-1);
-    sel.value=state.routes[organizerStartIndex].participantId;
+    const routes=state.routes||[];
+    if(!activeRoutes().length){
+        const info=document.getElementById("startFlowInfo");
+        const box=document.getElementById("organizerStartQrBox");
+        const payloadBox=document.getElementById("organizerStartPayload");
+        if(info){info.className="status warn";info.textContent="Todos los recorridos están descartados. Reactiva alguno para poder entregarlo.";}
+        if(box)box.innerHTML="QR pendiente";
+        if(payloadBox)payloadBox.textContent="";
+        updateRouteDiscardUi();
+        return;
+    }
+    organizerStartIndex=Math.min(organizerStartIndex,routes.length-1);
+    if(isRouteSkipped(routes[organizerStartIndex])){
+        const nextIdx=findNextAssignableRouteIndex(organizerStartIndex);
+        if(nextIdx>=0)organizerStartIndex=nextIdx;
+    }
+    sel.value=routes[organizerStartIndex].participantId;
     showParticipantQrForStart();
 }
 
@@ -1657,6 +1848,7 @@ function setStartFlowParticipantFromSelect(){
     organizerStartIndex=state.routes.findIndex(r=>r.participantId===sel.value);
     if(organizerStartIndex<0) organizerStartIndex=0;
     refreshParticipantNameInputs();
+    updateRouteDiscardUi();
     showParticipantQrForStart();
 }
 
@@ -1668,6 +1860,16 @@ function showParticipantQrForStart(){
     const pid=sel.value;
     const route=getRouteByParticipant(pid);
     if(!route) return toast("No hay recorrido para ese participante");
+    if(isRouteSkipped(route)){
+        const info=document.getElementById("startFlowInfo");
+        const box=document.getElementById("organizerStartQrBox");
+        const payloadBox=document.getElementById("organizerStartPayload");
+        if(info){info.className="status warn";info.innerHTML=`${escapeHtml(route.participantId)} · ${escapeHtml(route.routeId)} está descartado por el organizador y no se asignará a nadie.`;}
+        if(box)box.innerHTML="QR pendiente";
+        if(payloadBox)payloadBox.textContent="";
+        updateRouteDiscardUi();
+        return;
+    }
 
     const payload=participantPayload(pid);
     const info=document.getElementById("startFlowInfo");
@@ -1688,6 +1890,7 @@ function showStartQrForParticipant(){
     const pid=sel.value;
     const route=getRouteByParticipant(pid);
     if(!route) return toast("No hay recorrido para ese participante");
+    if(isRouteSkipped(route)) return toast("Este recorrido está descartado y no se puede entregar");
 
     const payload=controlPayload("START");
     const info=document.getElementById("startFlowInfo");
@@ -1701,16 +1904,19 @@ function showStartQrForParticipant(){
 
 function nextStartFlowParticipant(){
     if(!state.routes.length) return toast("No hay recorridos");
-
-    organizerStartIndex++;
-    if(organizerStartIndex>=state.routes.length){
-        organizerStartIndex=0;
-        toast("Fin de lista. Vuelves al primer participante.");
+    const nextIdx=findNextAssignableRouteIndex(organizerStartIndex);
+    if(nextIdx<0){
+        toast("No quedan recorridos asignables. Todos están descartados.");
+        updateRouteDiscardUi();
+        return;
     }
+    if(nextIdx<=organizerStartIndex)toast("Fin de lista. Vuelves al primer recorrido asignable.");
+    organizerStartIndex=nextIdx;
 
     const sel=document.getElementById("startFlowParticipantSelect");
     if(sel) sel.value=state.routes[organizerStartIndex].participantId;
     refreshParticipantNameInputs();
+    updateRouteDiscardUi();
 
     showParticipantQrForStart();
 }
@@ -1724,6 +1930,7 @@ function renderFinishFlowQr(){
     const pid=sel.value;
     const route=getRouteByParticipant(pid);
     if(!route) return toast("No hay recorrido para ese participante");
+    if(isRouteSkipped(route)) return toast("Este recorrido está descartado y no se puede usar en llegada");
 
     const payload=controlPayload("FINISH");
     const info=document.getElementById("finishFlowInfo");
@@ -1815,6 +2022,11 @@ function importResultPayload(raw){
         return;
     }
 
+    if(isResultForSkippedRoute(parsed)){
+        toast(`Resultado ignorado: ${parsed.participantId} está descartado por el organizador`);
+        return;
+    }
+
     parsed.participantName=resultParticipantName(parsed.participantId);
     const idx=state.importedResults.findIndex(r=>r.participantId===parsed.participantId);
     if(idx>=0){
@@ -1837,8 +2049,9 @@ function renderImportedResults(){
     const list=document.getElementById("importedResultsList");
     if(!summary || !list) return;
 
-    const total=state.importedResults.length;
-    const ok=state.importedResults.filter(r=>r.completed).length;
+    const visibleResults=activeImportedResults();
+    const total=visibleResults.length;
+    const ok=visibleResults.filter(r=>r.completed).length;
     const warn=total-ok;
 
     if(!total){
@@ -1851,7 +2064,7 @@ function renderImportedResults(){
     summary.className=warn?"status warn":"status ok";
     summary.innerHTML=`${total} resultado(s) importados · ${ok} completo(s) · ${warn} con avisos`;
 
-    const sorted=[...state.importedResults].sort((a,b)=>String(a.participantId).localeCompare(String(b.participantId),"es",{numeric:true}));
+    const sorted=[...visibleResults].sort((a,b)=>String(a.participantId).localeCompare(String(b.participantId),"es",{numeric:true}));
 
     list.innerHTML=sorted.map(r=>{
         const totalTime=r.startTime&&r.finishTime ? formatDuration(new Date(r.finishTime)-new Date(r.startTime)) : "--";
@@ -1881,7 +2094,8 @@ function downloadImportedResults(){
         eventId:state.eventId,
         exportedAt:new Date().toISOString(),
         participantNames:state.participantNames||{},
-        results:state.importedResults
+        skippedRoutes:state.skippedRoutes||{},
+        results:activeImportedResults()
     };
     downloadText(`resultados_importados_${state.eventId}.json`,JSON.stringify(data,null,2));
 }
@@ -2031,13 +2245,13 @@ async function scanResultQrCameraLoop(){
     }
 }
 
-function updateParticipantSelect(){const sel=document.getElementById("participantSelect");if(sel){sel.innerHTML="";for(let i=1;i<=state.participantCount;i++){const pid="P"+String(i).padStart(2,"0"),opt=document.createElement("option");opt.value=pid;opt.textContent=pid;sel.appendChild(opt)}}updateOrganizerParticipantSelects()}function renderQrPreview(){updateOrganizerParticipantSelects();renderImportedResults();const box=document.getElementById("qrPreview");if(!box)return;box.innerHTML="";[{label:"Participante P01",payload:participantPayload("P01")},{label:"Baliza B01",payload:controlPayload("B01")},{label:"Salida",payload:controlPayload("START")},{label:"Llegada",payload:controlPayload("FINISH")}].forEach(async item=>{const div=document.createElement("div");div.className="qr-card";div.innerHTML=`<div>${item.label}</div><div style="height:150px;display:grid;place-items:center">Generando...</div><small>${item.payload}</small>`;box.appendChild(div);try{const url=await QRCode.toDataURL(item.payload,{margin:4,width:220,errorCorrectionLevel:'M'});div.innerHTML=`<div>${item.label}</div><img src="${url}"><small>${item.payload}</small>`}catch(e){div.innerHTML=`<div>${item.label}</div><pre>${item.payload}</pre>`}})}function participantPayload(pid){const route=state.routes.find(r=>r.participantId===pid);return `ORI|PARTICIPANT|${state.eventId}|${pid}|${route?.routeId||""}`}function controlPayload(id){return `ORI|CONTROL|${state.eventId}|${id}`}
+function updateParticipantSelect(){const sel=document.getElementById("participantSelect");if(sel){sel.innerHTML="";for(let i=1;i<=state.participantCount;i++){const pid="P"+String(i).padStart(2,"0"),opt=document.createElement("option");opt.value=pid;opt.textContent=pid;sel.appendChild(opt)}}updateOrganizerParticipantSelects()}function renderQrPreview(){updateOrganizerParticipantSelects();renderImportedResults();const box=document.getElementById("qrPreview");if(!box)return;box.innerHTML="";[{label:"Participante P01",payload:participantPayload("P01")},{label:"Baliza B01",payload:controlPayload("B01")},{label:"Salida",payload:controlPayload("START")},{label:"Llegada",payload:controlPayload("FINISH")}].forEach(async item=>{const div=document.createElement("div");div.className="qr-card";div.innerHTML=`<div>${item.label}</div><div style="height:150px;display:grid;place-items:center">Generando...</div><small>${item.payload}</small>`;box.appendChild(div);try{const url=await QRCode.toDataURL(item.payload,{margin:4,width:220,errorCorrectionLevel:'M'});div.innerHTML=`<div>${item.label}</div><img src="${url}"><small>${item.payload}</small>`}catch(e){div.innerHTML=`<div>${item.label}</div><pre>${item.payload}</pre>`}})}function participantPayload(pid){const route=state.routes.find(r=>r.participantId===pid&&!isRouteSkipped(r));return `ORI|PARTICIPANT|${state.eventId}|${pid}|${route?.routeId||""}`}function controlPayload(id){return `ORI|CONTROL|${state.eventId}|${id}`}
 function loadParticipantMode(){
     const pid=document.getElementById("participantSelect").value;
-    const route=state.routes.find(r=>r.participantId===pid);
+    const route=state.routes.find(r=>r.participantId===pid&&!isRouteSkipped(r));
     if(!route){
         document.getElementById("participantInfo").className="status err";
-        document.getElementById("participantInfo").textContent="No hay recorrido generado para este participante.";
+        document.getElementById("participantInfo").textContent="No hay recorrido activo para este participante.";
         return;
     }
 
@@ -3642,7 +3856,7 @@ async function generateZip(verificationFromButton=null){ensureZipProgressUi();up
             previousButton.textContent="GENERANDO ZIP...";
         }
 
-        const totalZipWork=(state.routes?.length||0)*2+(Object.keys(state.points||{}).length||0)+6;
+        const totalZipWork=(materialRoutes.length||0)*2+(Object.keys(state.points||{}).length||0)+6;
         let zipWorkDone=0;
         updateZipProgress(zipWorkDone,totalZipWork,"Iniciando generación");
         await zipUiYield();
@@ -3698,17 +3912,17 @@ async function generateZip(verificationFromButton=null){ensureZipProgressUi();up
         let controlQrCount=0;
         const printableParticipantQrItems=[];
 
-        for(const route of state.routes){
-            updateZipProgress(++zipWorkDone,totalZipWork,`Preparando participante ${participantQrCount+1}/${state.routes.length}`);
+        for(const route of materialRoutes){
+            updateZipProgress(++zipWorkDone,totalZipWork,`Preparando participante ${participantQrCount+1}/${materialRoutes.length}`);
             await zipUiYield();
-            setZipStatus("warn",`Generando PDF y QR de participantes... ${participantQrCount+1}/${state.routes.length}`);
+            setZipStatus("warn",`Generando PDF y QR de participantes... ${participantQrCount+1}/${materialRoutes.length}`);
 
             const payload=participantPayload(route.participantId);
             if(typeof participantPlanPdfBlob==="function"){
                 try{
-                    updateZipProgress(++zipWorkDone,totalZipWork,`Generando PDF de plano ${participantQrCount+1}/${state.routes.length}`);
+                    updateZipProgress(++zipWorkDone,totalZipWork,`Generando PDF de plano ${participantQrCount+1}/${materialRoutes.length}`);
                     await zipUiYield();
-                    setZipStatus("warn",`Generando PDF fiel de plano... ${participantQrCount+1}/${state.routes.length}`);
+                    setZipStatus("warn",`Generando PDF fiel de plano... ${participantQrCount+1}/${materialRoutes.length}`);
                     const pdfBlob=await participantPlanPdfBlob(route);
                     pdfFolder.file(`Plano_${route.participantId}_${route.routeId}.pdf`,pdfBlob);
                 }catch(pdfErr){
@@ -3803,7 +4017,7 @@ async function generateZip(verificationFromButton=null){ensureZipProgressUi();up
 }
 
 
-function buildEventData(){return{version:"orientacion_v1_offline",eventId:state.eventId,eventName:state.eventName,createdAt:new Date().toISOString(),config:{participantCount:state.participantCount,controlCount:state.controlCount,controlsPerRoute:state.controlsPerRoute,maxControlReuse:state.maxControlReuse,balance:{distance:.5,climb:.5},liveReadyInternals:true,liveVisible:false},points:state.points,routes:state.routes,metrics:state.metrics,iofDescriptions:state.iofDescriptions||{}}}function pointsCsv(){const rows=[["ID","TIPO","UTM","LAT","LON","ELEVACION","DESCRIPCION","QR"]];Object.values(state.points).forEach(p=>rows.push([p.id,p.type,p.utm||"",p.lat??"",p.lon??"",p.elevation??"",p.desc||"",controlPayload(p.id)]));return rows.map(r=>r.map(csvEscape).join(",")).join("\n")}function routesCsv(){const rows=[["PARTICIPANTE","RECORRIDO","DISTANCIA_KM","TRAMO_LARGO_KM","DESNIVEL_POSITIVO_M","DESNIVEL_NEGATIVO_M","DESNIVEL_GLOBAL_M","DIFICULTAD","ORDEN"]];state.routes.forEach((r,i)=>{const m=state.metrics[i]||{};rows.push([r.participantId,r.routeId,m.distanceKm,m.longestKm,m.positiveM,m.negativeM,m.globalM,m.difficulty,r.points.join(" > ")])});return rows.map(r=>r.map(csvEscape).join(",")).join("\n")}
+function buildEventData(){const entries=(state.routes||[]).map((route,i)=>({route,metric:(state.metrics||[])[i]})).filter(x=>!isRouteSkipped(x.route));return{version:"orientacion_v1_offline",eventId:state.eventId,eventName:state.eventName,createdAt:new Date().toISOString(),config:{participantCount:entries.length||state.participantCount,controlCount:state.controlCount,controlsPerRoute:state.controlsPerRoute,maxControlReuse:state.maxControlReuse,balance:{distance:.5,climb:.5},liveReadyInternals:true,liveVisible:false},points:state.points,routes:entries.map(x=>x.route),metrics:entries.map(x=>x.metric||{}),iofDescriptions:state.iofDescriptions||{},skippedRoutes:state.skippedRoutes||{}}}function pointsCsv(){const rows=[["ID","TIPO","UTM","LAT","LON","ELEVACION","DESCRIPCION","QR"]];Object.values(state.points).forEach(p=>rows.push([p.id,p.type,p.utm||"",p.lat??"",p.lon??"",p.elevation??"",p.desc||"",controlPayload(p.id)]));return rows.map(r=>r.map(csvEscape).join(",")).join("\n")}function routesCsv(){const rows=[["PARTICIPANTE","RECORRIDO","DISTANCIA_KM","TRAMO_LARGO_KM","DESNIVEL_POSITIVO_M","DESNIVEL_NEGATIVO_M","DESNIVEL_GLOBAL_M","DIFICULTAD","ORDEN"]];(state.routes||[]).forEach((r,i)=>{if(isRouteSkipped(r))return;const m=state.metrics[i]||{};rows.push([r.participantId,r.routeId,m.distanceKm,m.longestKm,m.positiveM,m.negativeM,m.globalM,m.difficulty,r.points.join(" > ")])});return rows.map(r=>r.map(csvEscape).join(",")).join("\n")}
 
 const STORAGE_KEY_IOF_CUSTOM_SYMBOLS="militopo_iof_custom_symbols_v4_c_h_combo_cruce_union_curva";
 const STORAGE_KEY_IOF_D_CUSTOM_SYMBOLS="militopo_iof_d_custom_symbols_v1";
@@ -4567,6 +4781,7 @@ function cloneStateForSave(){
     const copy=JSON.parse(JSON.stringify(state));
     if(!copy.importedResults)copy.importedResults=[];
     if(!copy.participantNames)copy.participantNames={};
+    if(!copy.skippedRoutes)copy.skippedRoutes={};
     copy.currentStep=currentAppStep||1;
     return copy;
 }
@@ -4653,6 +4868,7 @@ function loadState(){
         selectedIofPointId=payload.selectedIofPointId||selectedIofPointId||"START";
         if(!state.importedResults)state.importedResults=[];
         if(!state.participantNames)state.participantNames={};
+        if(!state.skippedRoutes)state.skippedRoutes={};
         return {restored:true,step:currentAppStep,reason:main.value===payload?"main":"backup"};
     }
 
@@ -4660,6 +4876,7 @@ function loadState(){
         Object.assign(state,legacy.value);
         if(!state.importedResults)state.importedResults=[];
         if(!state.participantNames)state.participantNames={};
+        if(!state.skippedRoutes)state.skippedRoutes={};
         currentAppStep=normalizeAppStep(navStep||legacy.value.currentStep||1);
         return {restored:true,step:currentAppStep,reason:"legacy"};
     }
@@ -4699,6 +4916,7 @@ function resetSavedEvent(){
     rebuildPointsFromConfig(true);
     state.routes=[];
     state.metrics=[];
+    state.skippedRoutes={};
     state.routeWarnings=[];
     state.iofDescriptions={};
     ensureIofDescriptions();
@@ -4767,7 +4985,9 @@ function resultStatusEs(status){
 }
 
 function classifyParticipantStatus(pid){
-    const r=(state.importedResults||[]).find(x=>x.participantId===pid);
+    const route=getRouteByParticipant(pid);
+    if(route&&isRouteSkipped(route))return {status:"DESCARTADO POR ORGANIZADOR",cls:"pending",icon:"🚫",result:null};
+    const r=activeImportedResults().find(x=>x.participantId===pid);
     if(r){
         return r.completed ? {status:"FINALIZADO OK",cls:"ok",icon:"✅",result:r} : {status:"FINALIZADO CON AVISOS",cls:"bad",icon:"⚠️",result:r};
     }
@@ -4777,17 +4997,19 @@ function classifyParticipantStatus(pid){
 function renderResultsControl(){
     if(!state.importedResults)state.importedResults=[];
     ensureParticipantNamesStore();
-    const routes=state.routes||[];
-    const totalParticipants=routes.length||state.participantCount||0;
-    const imported=state.importedResults.length;
-    const completed=state.importedResults.filter(r=>r.completed).length;
+    const routes=activeRoutes();
+    const discarded=skippedRoutesList().length;
+    const totalParticipants=routes.length||0;
+    const importedResults=activeImportedResults();
+    const imported=importedResults.length;
+    const completed=importedResults.filter(r=>r.completed).length;
     const warnings=imported-completed;
     const pending=Math.max(0,totalParticipants-imported);
 
     const summary=document.getElementById("resultsControlSummary");
     if(summary){
         summary.className=warnings||pending?"status warn":"status ok";
-        summary.innerHTML=`Evento <b>${escapeHtml(state.eventId)}</b><br>${imported}/${totalParticipants} resultados importados · ${completed} correctos · ${warnings} con avisos · ${pending} pendientes.`;
+        summary.innerHTML=`Evento <b>${escapeHtml(state.eventId)}</b><br>${imported}/${totalParticipants} resultados importados · ${completed} correctos · ${warnings} con avisos · ${pending} pendientes${discarded?` · ${discarded} descartados por organizador`:""}.`;
     }
 
     const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
@@ -4804,7 +5026,7 @@ function renderResultsControl(){
 }
 
 function sortedImportedResults(){
-    return [...(state.importedResults||[])].sort((a,b)=>{
+    return [...activeImportedResults()].sort((a,b)=>{
         const ac=a.completed?0:1,bc=b.completed?0:1;
         if(ac!==bc)return ac-bc;
         const am=resultMs(a),bm=resultMs(b);
@@ -4918,13 +5140,18 @@ function renderParticipantsStatusGrid(){
     const box=document.getElementById("participantsStatusGrid");
     if(!box)return;
 
-    const routes=state.routes||[];
-    if(!routes.length){
+    const routes=activeRoutes();
+    const discarded=skippedRoutesList().length;
+    if(!(state.routes||[]).length){
         box.innerHTML=`<div class="status warn">Genera recorridos para ver el estado de participantes.</div>`;
         return;
     }
+    if(!routes.length){
+        box.innerHTML=`<div class="status warn">Todos los recorridos están descartados por el organizador. No hay participantes activos.</div>`;
+        return;
+    }
 
-    box.innerHTML=routes.map(route=>{
+    box.innerHTML=(discarded?`<div class="status warn" style="margin-bottom:10px;">${discarded} recorrido(s) descartado(s) por el organizador. No cuentan como pendientes.</div>`:"")+routes.map(route=>{
         const st=classifyParticipantStatus(route.participantId);
         const r=st.result;
         const ms=resultMs(r);
@@ -4977,7 +5204,7 @@ function renderSelectedResultDetail(){
     if(!sel||!box)return;
 
     const pid=sel.value;
-    const r=(state.importedResults||[]).find(x=>x.participantId===pid);
+    const r=activeImportedResults().find(x=>x.participantId===pid);
     if(!r){
         box.className="status warn";
         box.innerHTML="Selecciona un resultado importado.";
@@ -5080,13 +5307,13 @@ async function downloadClassificationExcel(){
         return `<row r="${r}" ht="${rowHeight}" customHeight="1">${cells}</row>`;
     }).join("");
 
-    const widths=[8,13,23,11,13,18,24,10].map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("");
+    const widths=[8,13,23,11,13,18,20,24,10].map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("");
 
     const sheetXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
  <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
- <dimension ref="A1:H${rows.length}"/>
+ <dimension ref="A1:I${rows.length}"/>
  <cols>${widths}</cols>
  <sheetData>${sheetRows}</sheetData>
  <pageMargins left="0.25" right="0.25" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>
@@ -5499,7 +5726,7 @@ renderSelectedResultDetail=function(){
     if(!sel||!box)return;
 
     const pid=sel.value;
-    const r=(state.importedResults||[]).find(x=>x.participantId===pid);
+    const r=activeImportedResults().find(x=>x.participantId===pid);
     if(!r){
         box.className="status warn";
         box.innerHTML="Selecciona un resultado importado.";
@@ -5583,7 +5810,7 @@ downloadClassificationExcel=async function(){
     const sheetXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
  <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
- <dimension ref="A1:H${rows.length}"/>
+ <dimension ref="A1:I${rows.length}"/>
  <sheetViews><sheetView workbookViewId="0" showGridLines="1"/></sheetViews>
  <cols>${widths}</cols>
  <sheetData>${sheetRows}</sheetData>
@@ -5761,7 +5988,7 @@ downloadClassificationExcel=async function(){
         const box=document.getElementById("selectedResultDetail");
         if(!sel||!box)return;
         const pid=sel.value;
-        const r=(state.importedResults||[]).find(x=>x.participantId===pid);
+        const r=activeImportedResults().find(x=>x.participantId===pid);
         if(!r){
             box.className="status warn";
             box.innerHTML="Selecciona un resultado importado.";
