@@ -1950,20 +1950,36 @@ async function renderOrganizerQr(targetBoxId,targetPayloadId,payload,label){
     box.innerHTML=`<div class="status warn" style="word-break:break-all;">No hay generador QR visual disponible.<br><br><b>${escapeHtml(label||"QR")}</b><br>${escapeHtml(payload)}</div>`;
 }
 
-function setStep5DeliveryConfirmPanel(kind,route=null,mode="hidden"){
+function ensureStep5DeliveryConfirmPanelElement(kind){
     const id=kind==="finish"?"finishQrDeliveryConfirmPanel":"startQrDeliveryConfirmPanel";
-    const panel=document.getElementById(id);
+    let panel=document.getElementById(id);
+    if(panel)return panel;
+    const qrBox=document.getElementById(kind==="finish"?"organizerFinishQrBox":"organizerStartQrBox");
+    if(!qrBox)return null;
+    panel=document.createElement("div");
+    panel.id=id;
+    panel.className="status warn";
+    panel.style.cssText="display:block;margin-top:10px;";
+    qrBox.insertAdjacentElement("afterend",panel);
+    return panel;
+}
+
+function setStep5DeliveryConfirmPanel(kind,route=null,mode="idle"){
+    const panel=ensureStep5DeliveryConfirmPanelElement(kind);
     if(!panel)return;
-    if(!route||mode==="hidden"){
-        panel.style.display="none";
-        panel.innerHTML="";
+    const isFinish=kind==="finish";
+    const idleText=isFinish
+        ? "🏁 QR LLEGADA pendiente de mostrar. Cuando lo entregues, confirma aquí."
+        : "2️⃣ QR SALIDA pendiente de mostrar. Cuando lo entregues, confirma aquí.";
+    panel.style.display="block";
+    if(!route){
+        panel.className="status warn";
+        panel.innerHTML=`${idleText}<span class="step5-confirm-small">Mostrar el QR en pantalla no cuenta como entregado.</span>`;
         return;
     }
     const st=getStartFlowStatus(route);
-    const isFinish=kind==="finish";
     const delivered=isFinish?!!st.finishQrDeliveredAt:!!st.startQrDeliveredAt;
     const shown=isFinish?!!st.finishQrShownAt:!!st.startQrShownAt;
-    panel.style.display="block";
     panel.className=delivered?"status ok":"status warn";
     if(delivered){
         panel.innerHTML=`✅ ${isFinish?"QR de llegada":"QR de salida"} entregado confirmado para <b>${escapeHtml(participantDisplay(route.participantId,route.routeId))}</b>.<span class="step5-confirm-small">Este estado ya cuenta como confirmado por el organizador.</span>`;
@@ -1971,12 +1987,15 @@ function setStep5DeliveryConfirmPanel(kind,route=null,mode="hidden"){
     }
     const btnLabel=isFinish?"✅ CONFIRMAR QR LLEGADA ENTREGADO":"✅ CONFIRMAR QR SALIDA ENTREGADO";
     const fn=isFinish?"confirmFinishQrDelivered()":"confirmStartQrDelivered()";
-    panel.innerHTML=`<div class="step5-confirm-actions"><button class="btn green" onclick="${fn}">${btnLabel}</button></div><span class="step5-confirm-small">Pulsa solo cuando el participante haya escaneado o recibido este QR. Mostrarlo en pantalla no cuenta como entregado.</span>${shown?"":'<span class="step5-confirm-small">Primero muestra el QR correspondiente.</span>'}`;
+    const intro=shown
+        ? `QR ${isFinish?"LLEGADA":"SALIDA"} mostrado para <b>${escapeHtml(participantDisplay(route.participantId,route.routeId))}</b>. Falta confirmar entrega.`
+        : `${isFinish?"🏁 QR LLEGADA":"2️⃣ QR SALIDA"} pendiente de mostrar para <b>${escapeHtml(participantDisplay(route.participantId,route.routeId))}</b>.`;
+    panel.innerHTML=`${intro}<div class="step5-confirm-actions"><button class="btn green" onclick="${fn}">${btnLabel}</button></div><span class="step5-confirm-small">Pulsa solo cuando el participante haya escaneado o recibido este QR. Mostrarlo en pantalla no cuenta como entregado.</span>${shown?"":'<span class="step5-confirm-small">Primero muestra el QR correspondiente.</span>'}`;
 }
 
 function hideStep5DeliveryConfirmPanels(){
-    setStep5DeliveryConfirmPanel("start",null,"hidden");
-    setStep5DeliveryConfirmPanel("finish",null,"hidden");
+    setStep5DeliveryConfirmPanel("start",null,"idle");
+    setStep5DeliveryConfirmPanel("finish",null,"idle");
 }
 
 function confirmStartQrDelivered(){
@@ -2011,6 +2030,7 @@ function confirmFinishQrDelivered(){
 
 function prepareStartFlow(){
     updateOrganizerParticipantSelects();
+    hideStep5DeliveryConfirmPanels();
 
     const sel=document.getElementById("startFlowParticipantSelect");
     if(!sel || !sel.options.length){
@@ -2074,6 +2094,7 @@ function showParticipantQrForStart(){
         if(payloadBox)payloadBox.textContent="";
         hideStep5DeliveryConfirmPanels();
         updateRouteDiscardUi();
+        renderStartFlowStatusPanel();
         return;
     }
 
@@ -2086,8 +2107,9 @@ function showParticipantQrForStart(){
         info.innerHTML=`1️⃣ Enseña este QR a <b>${escapeHtml(participantDisplay(pid,route.routeId))}</b> para cargar su recorrido en el móvil.`;
     }
 
-    setStep5DeliveryConfirmPanel("start",null,"hidden");
+    setStep5DeliveryConfirmPanel("start",route,"participant");
     renderOrganizerQr("organizerStartQrBox","organizerStartPayload",payload,participantDisplay(pid,route.routeId));
+    renderStartFlowStatusPanel();
 }
 
 function showStartQrForParticipant(){
@@ -2110,6 +2132,7 @@ function showStartQrForParticipant(){
 
     renderOrganizerQr("organizerStartQrBox","organizerStartPayload",payload,`SALIDA · ${participantDisplay(pid,route.routeId)}`);
     setStep5DeliveryConfirmPanel("start",route,"start");
+    renderStartFlowStatusPanel();
 }
 
 function nextStartFlowParticipant(){
@@ -2153,6 +2176,7 @@ function renderFinishFlowQr(){
 
     renderOrganizerQr("organizerFinishQrBox","organizerFinishPayload",payload,`LLEGADA · ${participantDisplay(pid,route.routeId)}`);
     setStep5DeliveryConfirmPanel("finish",route,"finish");
+    renderStartFlowStatusPanel();
 }
 
 let resultQrCameraStream=null;
