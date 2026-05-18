@@ -113,23 +113,26 @@
 <section id="step5" class="card">
   <div class="card-header">
     <h2>🚦 SECUENCIA SALIDA / LLEGADA</h2>
-    <div class="mode-pill">Organizador · QR participante · salida · llegada</div>
+    <div class="mode-pill">Organizador · entrega · confirmación · control</div>
   </div>
   <div class="block" id="organizerQrSequenceBlock" style="margin-top:16px;">
-    <h3>🚦 SECUENCIA DE SALIDA Y LLEGADA</h3>
-    <div class="help">Uso del organizador: enseña primero el QR del participante para cargar su recorrido, después el QR de salida para empezar. Al terminar, selecciona el participante y enseña llegada.</div>
+    <h3>🚦 SALIDAS ORGANIZADAS</h3>
+    <div class="help">Flujo claro: 1️⃣ QR participante para cargar recorrido · 2️⃣ QR salida para iniciar · 🏁 QR llegada al terminar. Confirmar entrega cuenta más que solo mostrar el QR.</div>
 
     <div class="organizer-flow-grid">
         <div class="block">
-            <label>Salida organizada</label>
+            <label>Participante y salida · pasos 1 y 2</label>
             <select id="startFlowParticipantSelect" onchange="setStartFlowParticipantFromSelect()"></select>
             <div class="organizer-step-buttons" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
                 <button class="btn green" onclick="showParticipantQrForStart()">1️⃣ QR PARTICIPANTE</button>
                 <button class="btn" onclick="showStartQrForParticipant()">2️⃣ QR SALIDA</button>
             </div>
-            <button class="btn secondary" style="margin-top:10px;width:100%;" onclick="nextStartFlowParticipant()">SIGUIENTE PARTICIPANTE →</button>
-            <div id="startFlowInfo" class="status warn" style="margin-top:10px;">Selecciona recorrido y usa los pasos: 1️⃣ QR participante → 2️⃣ QR salida.</div>
+            <button class="btn secondary" style="margin-top:10px;width:100%;" onclick="nextStartFlowParticipant()">SIGUIENTE RECORRIDO ACTIVO →</button>
+            <button id="discardStartRouteBtn" class="btn red" style="margin-top:10px;width:100%;" onclick="discardCurrentStartRoute()">🚫 DESCARTAR / NO ASIGNAR ESTE RECORRIDO</button>
+            <div id="startFlowInfo" class="status warn" style="margin-top:10px;">Orden: 1️⃣ QR participante → 2️⃣ QR salida → confirmar entrega.</div>
+            <div id="discardedRoutesInfo" class="status warn" style="display:none;margin-top:10px;"></div>
             <div id="organizerStartQrBox" class="organizer-qr-box">QR pendiente</div>
+            <div id="startQrDeliveryConfirmPanel" class="status warn step5-confirm-panel" style="display:block;margin-top:10px;">2️⃣ QR SALIDA pendiente de mostrar. Mostrarlo en pantalla todavía no cuenta como entregado.</div>
             <div id="organizerStartPayload" class="organizer-payload"></div>
         </div>
 
@@ -139,9 +142,17 @@
             <div class="organizer-step-buttons" style="grid-template-columns:1fr;">
                 <button class="btn red" onclick="renderFinishFlowQr()">🏁 QR LLEGADA</button>
             </div>
-            <div id="finishFlowInfo" class="status warn" style="margin-top:10px;">Selecciona participante y enseña el QR de llegada.</div>
+            <div id="finishFlowInfo" class="status warn" style="margin-top:10px;">Selecciona participante y enseña QR llegada.</div>
             <div id="organizerFinishQrBox" class="organizer-qr-box">QR pendiente</div>
+            <div id="finishQrDeliveryConfirmPanel" class="status warn step5-confirm-panel" style="display:block;margin-top:10px;">🏁 QR LLEGADA pendiente de mostrar. Mostrarlo en pantalla todavía no cuenta como entregado.</div>
             <div id="organizerFinishPayload" class="organizer-payload"></div>
+        </div>
+    </div>
+
+    <div class="block" id="step5StatusBlock" style="margin-top:16px;">
+        <label>Estado de salidas y participantes</label>
+        <div id="startFlowStatusPanel" class="step5-status-panel">
+            <div class="status warn">Genera recorridos o entra al paso 5 para ver el estado.</div>
         </div>
     </div>
 </div>
