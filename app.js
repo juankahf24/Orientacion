@@ -1630,7 +1630,7 @@ function startFlowStatusForRoute(route){
     if(isRouteSkipped(route))return {stage:"discarded",cls:"bad",icon:"🚫",label:"Descartado",hint:"No se entrega ni cuenta en resultados"};
     if(routeHasImportedResult(route))return {stage:"result",cls:"ok",icon:"🏁",label:"Resultado recibido",hint:"Finalizado e importado"};
     const st=getStartFlowStatus(route);
-    if(st.finishQrDeliveredAt)return {stage:"finishDelivered",cls:"ok",icon:"🏁",label:"QR llegada entregado",hint:"Fuera de carrera; esperando QR final"};
+    if(st.finishQrDeliveredAt)return {stage:"finishDelivered",cls:"ok",icon:"🏁",label:"Finalizado",hint:"QR llegada entregado · esperando QR final de resultado"};
     if(st.finishQrShownAt)return {stage:"finishShown",cls:"warn",icon:"🏁",label:"QR llegada mostrado",hint:"Sigue en carrera hasta confirmar llegada"};
     if(st.startQrDeliveredAt)return {stage:"startDelivered",cls:"ok",icon:"2️⃣",label:"QR salida entregado",hint:"Participante en carrera"};
     if(st.startQrShownAt)return {stage:"startShown",cls:"warn",icon:"2️⃣",label:"QR salida mostrado",hint:"Falta confirmar entrega"};
@@ -1698,8 +1698,8 @@ function renderStartFlowStatusPanel(){
         return `<div class="step5-status-card ${st.cls}"><div class="step5-status-icon">${st.icon}</div><div class="step5-status-main"><b>${escapeHtml(title)} · ${escapeHtml(route.routeId||"")}</b><small>${escapeHtml(st.label)} · ${escapeHtml(st.hint)}</small></div></div>`;
     }).join("");
     const activeCount=activeRoutes().length;
-    // En carrera = salida entregada y llegada aún no confirmada.
-    // No incluye llegadas ya entregadas ni resultados importados.
+    // En carrera = QR salida entregado y QR llegada todavía no entregado.
+    // Si la llegada ya está entregada, pasa a Finalizados; si se importa resultado, pasa a Finalizados con resultado.
     const inRace=counts.startDelivered+counts.finishShown;
     panel.innerHTML=`<div class="step5-status-title"><span>Estado de salidas y participantes</span><span>${activeCount}/${routes.length} activos</span></div>
         <div class="step5-status-summary">
@@ -1708,8 +1708,8 @@ function renderStartFlowStatusPanel(){
             <span>2️⃣ Salida mostrada sin confirmar: ${counts.startShown}</span>
             <span>✅ Salida entregada: ${counts.startDelivered}</span>
             <span>🏁 Llegada mostrada sin confirmar: ${counts.finishShown}</span>
-            <span>✅ Llegada entregada: ${counts.finishDelivered}</span>
             <span>🏃 En carrera: ${inRace}</span>
+            <span>🏁 Finalizados: ${counts.finishDelivered}</span>
             <span>📥 Finalizados con resultado: ${counts.result}</span>
             <span>🚫 Descartados: ${counts.discarded}</span>
         </div>
