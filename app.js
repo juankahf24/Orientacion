@@ -1590,7 +1590,7 @@ function getStartFlowStatus(routeOrPid,routeId=""){
 
 function markStartFlowStatus(pid,field){
     const route=getRouteByParticipant(pid);
-    if(!route)return;
+    if(!route)return null;
     const store=ensureStartFlowStatusStore();
     const key=startFlowStatusKey(route);
     const current=store[key]||{participantId:route.participantId,routeId:route.routeId};
@@ -1600,9 +1600,19 @@ function markStartFlowStatus(pid,field){
     if(field==="prepared"&&!current.preparedAt)current.preparedAt=current.updatedAt;
     if(field==="participantQr"&&!current.participantQrShownAt)current.participantQrShownAt=current.updatedAt;
     if(field==="startQr"&&!current.startQrShownAt)current.startQrShownAt=current.updatedAt;
+    if(field==="startDelivered"){
+        if(!current.startQrShownAt)current.startQrShownAt=current.updatedAt;
+        current.startQrDeliveredAt=current.updatedAt;
+    }
+    if(field==="finishQr"&&!current.finishQrShownAt)current.finishQrShownAt=current.updatedAt;
+    if(field==="finishDelivered"){
+        if(!current.finishQrShownAt)current.finishQrShownAt=current.updatedAt;
+        current.finishQrDeliveredAt=current.updatedAt;
+    }
     store[key]=current;
     saveState();
     renderStartFlowStatusPanel();
+    return current;
 }
 
 function cleanupStartFlowStatusStore(){
@@ -1617,13 +1627,16 @@ function routeHasImportedResult(route){
 }
 
 function startFlowStatusForRoute(route){
-    if(isRouteSkipped(route))return {cls:"bad",icon:"🚫",label:"Descartado",hint:"No se entrega ni cuenta en resultados"};
-    if(routeHasImportedResult(route))return {cls:"ok",icon:"🏁",label:"Resultado recibido",hint:"Finalizado e importado"};
+    if(isRouteSkipped(route))return {stage:"discarded",cls:"bad",icon:"🚫",label:"Descartado",hint:"No se entrega ni cuenta en resultados"};
+    if(routeHasImportedResult(route))return {stage:"result",cls:"ok",icon:"🏁",label:"Resultado recibido",hint:"Finalizado e importado"};
     const st=getStartFlowStatus(route);
-    if(st.startQrShownAt)return {cls:"ok",icon:"2️⃣",label:"QR salida mostrado",hint:"El participante ya puede correr"};
-    if(st.participantQrShownAt)return {cls:"warn",icon:"1️⃣",label:"QR participante mostrado",hint:"Falta enseñar QR salida"};
-    if(st.preparedAt)return {cls:"warn",icon:"👤",label:"Participante preparado",hint:"Falta mostrar QR participante"};
-    return {cls:"pending",icon:"⏳",label:"Pendiente",hint:"Aún sin entregar"};
+    if(st.finishQrDeliveredAt)return {stage:"finishDelivered",cls:"ok",icon:"🏁",label:"QR llegada entregado",hint:"Esperando QR final de resultado"};
+    if(st.finishQrShownAt)return {stage:"finishShown",cls:"warn",icon:"🏁",label:"QR llegada mostrado",hint:"Falta confirmar entrega"};
+    if(st.startQrDeliveredAt)return {stage:"startDelivered",cls:"ok",icon:"2️⃣",label:"QR salida entregado",hint:"Participante en carrera"};
+    if(st.startQrShownAt)return {stage:"startShown",cls:"warn",icon:"2️⃣",label:"QR salida mostrado",hint:"Falta confirmar entrega"};
+    if(st.participantQrShownAt)return {stage:"participant",cls:"warn",icon:"1️⃣",label:"QR participante mostrado",hint:"Falta QR salida"};
+    if(st.preparedAt)return {stage:"prepared",cls:"warn",icon:"👤",label:"Participante preparado",hint:"Falta QR participante"};
+    return {stage:"pending",cls:"pending",icon:"⏳",label:"Pendiente",hint:"Aún sin entregar"};
 }
 
 function ensureStep5FlowVisualStyles(){
@@ -1645,6 +1658,7 @@ function ensureStep5FlowVisualStyles(){
 .step5-status-main{min-width:0}.step5-status-main b,.step5-status-main small{display:block;white-space:normal;overflow-wrap:anywhere;line-height:1.25}
 .step5-status-main b{color:#f5e6c8;font-size:.88rem}.step5-status-main small{color:#cbb894;font-size:.72rem;margin-top:2px}
 .organizer-step-buttons .btn{min-height:54px}
+.step5-confirm-actions{display:grid;grid-template-columns:1fr;gap:8px}.step5-confirm-actions .btn{width:100%;min-height:52px}.step5-confirm-small{display:block;margin-top:6px;color:#cbb894;font-size:.78rem;line-height:1.25}
 @media(max-width:760px){.step5-status-grid{grid-template-columns:1fr}.step5-status-panel{padding:10px}.step5-status-title{font-size:.7rem}.organizer-flow-grid .block{padding:14px}.organizer-step-buttons{gap:8px!important}.organizer-qr-box img{max-width:88vw!important}}`;
     document.head.appendChild(style);
 }
@@ -1670,29 +1684,28 @@ function renderStartFlowStatusPanel(){
     cleanupStartFlowStatusStore();
     const routes=state.routes||[];
     if(!routes.length){
-        panel.innerHTML=`<div class="step5-status-title">Estado de salidas</div><div class="status warn">Genera recorridos para ver el estado.</div>`;
+        panel.innerHTML=`<div class="step5-status-title">Estado de salidas y participantes</div><div class="status warn">Genera recorridos para ver el estado.</div>`;
         return;
     }
-    const counts={pending:0,prepared:0,participant:0,start:0,result:0,discarded:0};
+    const counts={pending:0,prepared:0,participant:0,startShown:0,startDelivered:0,finishShown:0,finishDelivered:0,result:0,discarded:0};
     const cards=routes.map(route=>{
         const st=startFlowStatusForRoute(route);
-        if(st.label==="Descartado")counts.discarded++;
-        else if(st.label==="Resultado recibido")counts.result++;
-        else if(st.label==="QR salida mostrado")counts.start++;
-        else if(st.label==="QR participante mostrado")counts.participant++;
-        else if(st.label==="Participante preparado")counts.prepared++;
+        if(counts[st.stage]!==undefined)counts[st.stage]++;
         else counts.pending++;
         const name=resultParticipantName(route.participantId);
         const title=name?`${route.participantId} · ${name}`:route.participantId;
         return `<div class="step5-status-card ${st.cls}"><div class="step5-status-icon">${st.icon}</div><div class="step5-status-main"><b>${escapeHtml(title)} · ${escapeHtml(route.routeId||"")}</b><small>${escapeHtml(st.label)} · ${escapeHtml(st.hint)}</small></div></div>`;
     }).join("");
-    panel.innerHTML=`<div class="step5-status-title"><span>Estado de salidas</span><span>${activeRoutes().length}/${routes.length} activos</span></div>
+    panel.innerHTML=`<div class="step5-status-title"><span>Estado de salidas y participantes</span><span>${activeRoutes().length}/${routes.length} activos</span></div>
         <div class="step5-status-summary">
             <span>⏳ Pendientes: ${counts.pending}</span>
             <span>👤 Preparados: ${counts.prepared}</span>
             <span>1️⃣ QR participante: ${counts.participant}</span>
-            <span>2️⃣ QR salida: ${counts.start}</span>
-            <span>🏁 Resultado: ${counts.result}</span>
+            <span>2️⃣ Salida mostrada: ${counts.startShown}</span>
+            <span>✅ Salida entregada: ${counts.startDelivered}</span>
+            <span>🏁 Llegada mostrada: ${counts.finishShown}</span>
+            <span>✅ Llegada entregada: ${counts.finishDelivered}</span>
+            <span>📥 Resultado: ${counts.result}</span>
             <span>🚫 Descartados: ${counts.discarded}</span>
         </div>
         <div class="step5-status-grid">${cards}</div>`;
@@ -1796,6 +1809,7 @@ function updateRouteDiscardUi(){
     const btn=document.getElementById("discardStartRouteBtn");
     const info=document.getElementById("discardedRoutesInfo");
     const route=sel&&sel.value?getRouteByParticipant(sel.value):null;
+    if(route&&isRouteSkipped(route))setStep5DeliveryConfirmPanel("start",null,"hidden");
     if(btn){
         if(route&&isRouteSkipped(route)){
             btn.textContent="↩️ REACTIVAR ESTE RECORRIDO";
@@ -1936,6 +1950,65 @@ async function renderOrganizerQr(targetBoxId,targetPayloadId,payload,label){
     box.innerHTML=`<div class="status warn" style="word-break:break-all;">No hay generador QR visual disponible.<br><br><b>${escapeHtml(label||"QR")}</b><br>${escapeHtml(payload)}</div>`;
 }
 
+function setStep5DeliveryConfirmPanel(kind,route=null,mode="hidden"){
+    const id=kind==="finish"?"finishQrDeliveryConfirmPanel":"startQrDeliveryConfirmPanel";
+    const panel=document.getElementById(id);
+    if(!panel)return;
+    if(!route||mode==="hidden"){
+        panel.style.display="none";
+        panel.innerHTML="";
+        return;
+    }
+    const st=getStartFlowStatus(route);
+    const isFinish=kind==="finish";
+    const delivered=isFinish?!!st.finishQrDeliveredAt:!!st.startQrDeliveredAt;
+    const shown=isFinish?!!st.finishQrShownAt:!!st.startQrShownAt;
+    panel.style.display="block";
+    panel.className=delivered?"status ok":"status warn";
+    if(delivered){
+        panel.innerHTML=`✅ ${isFinish?"QR de llegada":"QR de salida"} entregado confirmado para <b>${escapeHtml(participantDisplay(route.participantId,route.routeId))}</b>.<span class="step5-confirm-small">Este estado ya cuenta como confirmado por el organizador.</span>`;
+        return;
+    }
+    const btnLabel=isFinish?"✅ CONFIRMAR QR LLEGADA ENTREGADO":"✅ CONFIRMAR QR SALIDA ENTREGADO";
+    const fn=isFinish?"confirmFinishQrDelivered()":"confirmStartQrDelivered()";
+    panel.innerHTML=`<div class="step5-confirm-actions"><button class="btn green" onclick="${fn}">${btnLabel}</button></div><span class="step5-confirm-small">Pulsa solo cuando el participante haya escaneado o recibido este QR. Mostrarlo en pantalla no cuenta como entregado.</span>${shown?"":'<span class="step5-confirm-small">Primero muestra el QR correspondiente.</span>'}`;
+}
+
+function hideStep5DeliveryConfirmPanels(){
+    setStep5DeliveryConfirmPanel("start",null,"hidden");
+    setStep5DeliveryConfirmPanel("finish",null,"hidden");
+}
+
+function confirmStartQrDelivered(){
+    const sel=document.getElementById("startFlowParticipantSelect");
+    if(!sel||!sel.value)return toast("Selecciona participante");
+    const route=getRouteByParticipant(sel.value);
+    if(!route)return toast("No hay recorrido seleccionado");
+    if(isRouteSkipped(route))return toast("Este recorrido está descartado");
+    const st=getStartFlowStatus(route);
+    if(!st.startQrShownAt)return toast("Primero muestra el QR de salida");
+    markStartFlowStatus(route.participantId,"startDelivered");
+    setStep5DeliveryConfirmPanel("start",route,"start");
+    const info=document.getElementById("startFlowInfo");
+    if(info){info.className="status ok";info.innerHTML=`✅ QR de SALIDA entregado confirmado para <b>${escapeHtml(participantDisplay(route.participantId,route.routeId))}</b>.`}
+    toast("Salida confirmada: "+route.participantId);
+}
+
+function confirmFinishQrDelivered(){
+    const sel=document.getElementById("finishFlowParticipantSelect");
+    if(!sel||!sel.value)return toast("Selecciona participante");
+    const route=getRouteByParticipant(sel.value);
+    if(!route)return toast("No hay recorrido seleccionado");
+    if(isRouteSkipped(route))return toast("Este recorrido está descartado");
+    const st=getStartFlowStatus(route);
+    if(!st.finishQrShownAt)return toast("Primero muestra el QR de llegada");
+    markStartFlowStatus(route.participantId,"finishDelivered");
+    setStep5DeliveryConfirmPanel("finish",route,"finish");
+    const info=document.getElementById("finishFlowInfo");
+    if(info){info.className="status ok";info.innerHTML=`✅ QR de LLEGADA entregado confirmado para <b>${escapeHtml(participantDisplay(route.participantId,route.routeId))}</b>. Ahora espera el QR final de resultado del participante.`}
+    toast("Llegada confirmada: "+route.participantId);
+}
+
 function prepareStartFlow(){
     updateOrganizerParticipantSelects();
 
@@ -1946,6 +2019,7 @@ function prepareStartFlow(){
             info.className="status err";
             info.textContent="No hay recorridos generados.";
         }
+        hideStep5DeliveryConfirmPanels();
         renderStartFlowStatusPanel();
         return;
     }
@@ -1958,6 +2032,7 @@ function prepareStartFlow(){
         if(info){info.className="status warn";info.textContent="Todos los recorridos están descartados. Reactiva alguno para poder entregarlo.";}
         if(box)box.innerHTML="QR pendiente";
         if(payloadBox)payloadBox.textContent="";
+        hideStep5DeliveryConfirmPanels();
         updateRouteDiscardUi();
         renderStartFlowStatusPanel();
         return;
@@ -1997,6 +2072,7 @@ function showParticipantQrForStart(){
         if(info){info.className="status warn";info.innerHTML=`${escapeHtml(route.participantId)} · ${escapeHtml(route.routeId)} está descartado por el organizador y no se asignará a nadie.`;}
         if(box)box.innerHTML="QR pendiente";
         if(payloadBox)payloadBox.textContent="";
+        hideStep5DeliveryConfirmPanels();
         updateRouteDiscardUi();
         return;
     }
@@ -2010,6 +2086,7 @@ function showParticipantQrForStart(){
         info.innerHTML=`1️⃣ Enseña este QR a <b>${escapeHtml(participantDisplay(pid,route.routeId))}</b> para cargar su recorrido en el móvil.`;
     }
 
+    setStep5DeliveryConfirmPanel("start",null,"hidden");
     renderOrganizerQr("organizerStartQrBox","organizerStartPayload",payload,participantDisplay(pid,route.routeId));
 }
 
@@ -2032,6 +2109,7 @@ function showStartQrForParticipant(){
     }
 
     renderOrganizerQr("organizerStartQrBox","organizerStartPayload",payload,`SALIDA · ${participantDisplay(pid,route.routeId)}`);
+    setStep5DeliveryConfirmPanel("start",route,"start");
 }
 
 function nextStartFlowParticipant(){
@@ -2064,6 +2142,7 @@ function renderFinishFlowQr(){
     if(!route) return toast("No hay recorrido para ese participante");
     if(isRouteSkipped(route)) return toast("Este recorrido está descartado y no se puede usar en llegada");
 
+    markStartFlowStatus(pid,"finishQr");
     const payload=controlPayload("FINISH");
     const info=document.getElementById("finishFlowInfo");
     refreshParticipantNameInputs();
@@ -2073,6 +2152,7 @@ function renderFinishFlowQr(){
     }
 
     renderOrganizerQr("organizerFinishQrBox","organizerFinishPayload",payload,`LLEGADA · ${participantDisplay(pid,route.routeId)}`);
+    setStep5DeliveryConfirmPanel("finish",route,"finish");
 }
 
 let resultQrCameraStream=null;
