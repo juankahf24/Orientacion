@@ -4101,6 +4101,13 @@ async function generateZip(verificationFromButton=null){ensureZipProgressUi();up
             previousButton.textContent="GENERANDO ZIP...";
         }
 
+        const materialRoutes=state.routes||[];
+        if(!materialRoutes.length){
+            setZipStatus("warn","No hay recorridos para generar.");
+            return toast("No hay recorridos");
+        }
+        const skippedMaterialCount=typeof skippedRoutesList==="function"?skippedRoutesList().length:0;
+
         const totalZipWork=(materialRoutes.length||0)*2+(Object.keys(state.points||{}).length||0)+6;
         let zipWorkDone=0;
         updateZipProgress(zipWorkDone,totalZipWork,"Iniciando generación");
@@ -4245,7 +4252,7 @@ async function generateZip(verificationFromButton=null){ensureZipProgressUi();up
 
         updateZipProgress(totalZipWork,totalZipWork,"ZIP generado correctamente");
         setTimeout(hideZipProgress,1500);
-        setZipStatus("ok",`ZIP generado correctamente. QR participantes: ${participantQrCount}. QR balizas: ${controlQrCount}.`);
+        setZipStatus("ok",`ZIP generado correctamente. QR participantes: ${participantQrCount}. QR balizas: ${controlQrCount}.${skippedMaterialCount?` Reservas/descartados incluidos: ${skippedMaterialCount}.`:""}`);
         saveState();
         toast("ZIP generado");
     }catch(err){
@@ -4262,7 +4269,31 @@ async function generateZip(verificationFromButton=null){ensureZipProgressUi();up
 }
 
 
-function buildEventData(){const entries=(state.routes||[]).map((route,i)=>({route,metric:(state.metrics||[])[i]})).filter(x=>!isRouteSkipped(x.route));return{version:"orientacion_v1_offline",eventId:state.eventId,eventName:state.eventName,createdAt:new Date().toISOString(),config:{participantCount:entries.length||state.participantCount,controlCount:state.controlCount,controlsPerRoute:state.controlsPerRoute,maxControlReuse:state.maxControlReuse,balance:{distance:.5,climb:.5},liveReadyInternals:true,liveVisible:false},points:state.points,routes:entries.map(x=>x.route),metrics:entries.map(x=>x.metric||{}),iofDescriptions:state.iofDescriptions||{},skippedRoutes:state.skippedRoutes||{}}}function pointsCsv(){const rows=[["ID","TIPO","UTM","LAT","LON","ELEVACION","DESCRIPCION","QR"]];Object.values(state.points).forEach(p=>rows.push([p.id,p.type,p.utm||"",p.lat??"",p.lon??"",p.elevation??"",p.desc||"",controlPayload(p.id)]));return rows.map(r=>r.map(csvEscape).join(",")).join("\n")}function routesCsv(){const rows=[["PARTICIPANTE","RECORRIDO","DISTANCIA_KM","TRAMO_LARGO_KM","DESNIVEL_POSITIVO_M","DESNIVEL_NEGATIVO_M","DESNIVEL_GLOBAL_M","DIFICULTAD","ORDEN"]];(state.routes||[]).forEach((r,i)=>{if(isRouteSkipped(r))return;const m=state.metrics[i]||{};rows.push([r.participantId,r.routeId,m.distanceKm,m.longestKm,m.positiveM,m.negativeM,m.globalM,m.difficulty,r.points.join(" > ")])});return rows.map(r=>r.map(csvEscape).join(",")).join("\n")}
+function buildEventData(){
+    const entries=(state.routes||[]).map((route,i)=>({route,metric:(state.metrics||[])[i]}));
+    return{
+        version:"orientacion_v1_offline",
+        eventId:state.eventId,
+        eventName:state.eventName,
+        createdAt:new Date().toISOString(),
+        config:{
+            participantCount:entries.length||state.participantCount,
+            activeParticipantCount:typeof activeRoutes==="function"?activeRoutes().length:entries.length,
+            skippedParticipantCount:typeof skippedRoutesList==="function"?skippedRoutesList().length:0,
+            controlCount:state.controlCount,
+            controlsPerRoute:state.controlsPerRoute,
+            maxControlReuse:state.maxControlReuse,
+            balance:{distance:.5,climb:.5},
+            liveReadyInternals:true,
+            liveVisible:false
+        },
+        points:state.points,
+        routes:entries.map(x=>x.route),
+        metrics:entries.map(x=>x.metric||{}),
+        iofDescriptions:state.iofDescriptions||{},
+        skippedRoutes:state.skippedRoutes||{}
+    }
+}function pointsCsv(){const rows=[["ID","TIPO","UTM","LAT","LON","ELEVACION","DESCRIPCION","QR"]];Object.values(state.points).forEach(p=>rows.push([p.id,p.type,p.utm||"",p.lat??"",p.lon??"",p.elevation??"",p.desc||"",controlPayload(p.id)]));return rows.map(r=>r.map(csvEscape).join(",")).join("\n")}function routesCsv(){const rows=[["PARTICIPANTE","RECORRIDO","ESTADO_MATERIAL","DISTANCIA_KM","TRAMO_LARGO_KM","DESNIVEL_POSITIVO_M","DESNIVEL_NEGATIVO_M","DESNIVEL_GLOBAL_M","DIFICULTAD","ORDEN"]];(state.routes||[]).forEach((r,i)=>{const m=state.metrics[i]||{};rows.push([r.participantId,r.routeId,isRouteSkipped(r)?"DESCARTADO_RESERVA":"ACTIVO",m.distanceKm,m.longestKm,m.positiveM,m.negativeM,m.globalM,m.difficulty,r.points.join(" > ")])});return rows.map(r=>r.map(csvEscape).join(",")).join("\n")}
 
 const STORAGE_KEY_IOF_CUSTOM_SYMBOLS="militopo_iof_custom_symbols_v4_c_h_combo_cruce_union_curva";
 const STORAGE_KEY_IOF_D_CUSTOM_SYMBOLS="militopo_iof_d_custom_symbols_v1";
