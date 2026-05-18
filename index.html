@@ -123,13 +123,12 @@
         <div class="block">
             <label>Salida organizada</label>
             <select id="startFlowParticipantSelect" onchange="setStartFlowParticipantFromSelect()"></select>
-            <div class="organizer-step-buttons">
-                <button class="btn green" onclick="prepareStartFlow()">🧭 PREPARAR</button>
-                <button class="btn" onclick="showParticipantQrForStart()">1️⃣ QR PARTICIPANTE</button>
+            <div class="organizer-step-buttons" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+                <button class="btn green" onclick="showParticipantQrForStart()">1️⃣ QR PARTICIPANTE</button>
                 <button class="btn" onclick="showStartQrForParticipant()">2️⃣ QR SALIDA</button>
             </div>
             <button class="btn secondary" style="margin-top:10px;width:100%;" onclick="nextStartFlowParticipant()">SIGUIENTE PARTICIPANTE →</button>
-            <div id="startFlowInfo" class="status warn" style="margin-top:10px;">Genera recorridos y pulsa preparar.</div>
+            <div id="startFlowInfo" class="status warn" style="margin-top:10px;">Selecciona recorrido y usa los pasos: 1️⃣ QR participante → 2️⃣ QR salida.</div>
             <div id="organizerStartQrBox" class="organizer-qr-box">QR pendiente</div>
             <div id="organizerStartPayload" class="organizer-payload"></div>
         </div>
