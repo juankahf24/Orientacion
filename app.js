@@ -1642,12 +1642,12 @@ function ensureStep5FlowVisualStyles(){
     const style=document.createElement("style");
     style.id="step5FlowVisualStyles";
     style.textContent=`
-.step5-status-panel{margin-top:12px;border-radius:20px;border:1px solid rgba(230,188,122,.24);background:rgba(0,0,0,.12);padding:12px;overflow:hidden}
-.step5-status-title{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;color:#f0c16a;font-weight:900;letter-spacing:.08em;text-transform:uppercase;font-size:.76rem}
-.step5-status-summary{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px}
-.step5-status-summary span{border-radius:999px;padding:6px 9px;background:rgba(255,255,255,.07);border:1px solid rgba(230,188,122,.18);font-size:.72rem;font-weight:900;color:#f5e6c8;line-height:1.15}
-.step5-status-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
-.step5-status-card{display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px;align-items:center;border-radius:16px;padding:10px;background:rgba(0,0,0,.15);border:1px solid rgba(230,188,122,.22);overflow:hidden}
+.step5-status-panel{margin-top:16px;border-radius:24px;border:1.8px solid rgba(240,193,106,.42);background:linear-gradient(180deg,rgba(38,58,25,.74),rgba(7,16,8,.42));padding:14px;overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.06)}
+.step5-status-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;color:#f0c16a;font-weight:900;letter-spacing:.08em;text-transform:uppercase;font-size:.86rem;line-height:1.25}
+.step5-status-title-main{display:block;font-size:1.02rem;color:#ffe3a0;letter-spacing:.10em}.step5-status-title-sub{display:block;margin-top:5px;color:#f5e6c8;font-size:.72rem;letter-spacing:.03em;text-transform:none;line-height:1.35;font-weight:800;opacity:.92}.step5-status-active-pill{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid rgba(139,181,106,.55);background:rgba(139,181,106,.18);color:#f7ffe9;padding:8px 11px;font-size:.78rem;line-height:1.15;white-space:normal;text-align:center}
+.step5-status-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px;margin-bottom:12px}.step5-status-summary span{border-radius:999px;padding:6px 9px;background:rgba(255,255,255,.07);border:1px solid rgba(230,188,122,.18);font-size:.72rem;font-weight:900;color:#f5e6c8;line-height:1.15}.step5-status-summary-clear span{display:none}.step5-count-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;border-radius:18px;padding:10px 12px;background:rgba(0,0,0,.20);border:1.3px solid rgba(230,188,122,.25);min-height:58px}.step5-count-card .ico{font-size:1.55rem;line-height:1}.step5-count-card b{display:block;color:#f5e6c8;font-size:.82rem;line-height:1.15;letter-spacing:.035em}.step5-count-card small{display:block;color:#cbb894;font-size:.66rem;line-height:1.2;margin-top:3px}.step5-count-card em{font-style:normal;color:#ffe3a0;font-size:1.55rem;font-weight:900;line-height:1}.step5-count-card.race{border-color:rgba(93,168,255,.42);background:rgba(65,130,205,.14)}.step5-count-card.finished,.step5-count-card.result{border-color:rgba(139,181,106,.48);background:rgba(139,181,106,.12)}.step5-count-card.discarded{border-color:rgba(200,94,69,.50);background:rgba(200,94,69,.12)}
+.step5-status-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:9px;margin-top:10px}.step5-status-list-title{margin:4px 0 8px;color:#ffe3a0;font-weight:900;letter-spacing:.08em;text-transform:uppercase;font-size:.76rem}
+.step5-status-card{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;border-radius:18px;padding:11px;background:rgba(0,0,0,.17);border:1.4px solid rgba(230,188,122,.24);overflow:hidden}
 .step5-status-card.ok{border-color:rgba(139,181,106,.55);background:rgba(139,181,106,.11)}
 .step5-status-card.warn{border-color:rgba(230,188,122,.60);background:rgba(230,188,122,.09)}
 .step5-status-card.bad{border-color:rgba(200,94,69,.60);background:rgba(200,94,69,.11)}
@@ -1658,7 +1658,7 @@ function ensureStep5FlowVisualStyles(){
 .organizer-step-buttons .btn{min-height:54px}.step5-confirm-panel{border-width:1.5px!important}
 .step5-confirm-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}.step5-confirm-actions .btn{width:100%;min-height:52px}.step5-confirm-small{display:block;margin-top:6px;color:#cbb894;font-size:.78rem;line-height:1.25}
 #discardStartRouteBtn{min-height:48px}#discardedRoutesInfo{line-height:1.35}
-@media(max-width:760px){.organizer-flow-grid{grid-template-columns:1fr!important}.step5-status-grid{grid-template-columns:1fr}.step5-status-panel{padding:10px}.step5-status-title{font-size:.7rem}.step5-status-summary span{font-size:.68rem}.organizer-flow-grid .block{padding:14px}.organizer-step-buttons{gap:8px!important}.organizer-qr-box img{max-width:88vw!important}.step5-confirm-actions .btn{font-size:.9rem}}`
+@media(max-width:760px){.organizer-flow-grid{grid-template-columns:1fr!important}.step5-status-grid{grid-template-columns:1fr}.step5-status-panel{padding:12px}.step5-status-title{font-size:.76rem}.step5-status-title-main{font-size:.94rem}.step5-status-summary{grid-template-columns:1fr}.step5-count-card{min-height:62px}.step5-count-card b{font-size:.82rem}.step5-count-card small{font-size:.66rem}.organizer-flow-grid .block{padding:14px}.organizer-step-buttons{gap:8px!important}.organizer-qr-box img{max-width:88vw!important}.step5-confirm-actions .btn{font-size:.9rem}}`
     document.head.appendChild(style);
 }
 
@@ -1683,7 +1683,7 @@ function renderStartFlowStatusPanel(){
     cleanupStartFlowStatusStore();
     const routes=state.routes||[];
     if(!routes.length){
-        panel.innerHTML=`<div class="step5-status-title">Estado de salidas y participantes</div><div class="status warn">Genera recorridos para ver el estado.</div>`;
+        panel.innerHTML=`<div class="step5-status-title"><span class="step5-status-title-main">Estado de salidas y participantes</span></div><div class="status warn">Genera recorridos para ver el estado.</div>`;
         return;
     }
     const counts={pending:0,race:0,finished:0,result:0,discarded:0};
@@ -1692,22 +1692,28 @@ function renderStartFlowStatusPanel(){
         if(counts[st.stage]!==undefined)counts[st.stage]++;
         else counts.pending++;
         const name=resultParticipantName(route.participantId);
-        const title=name?`${route.participantId} · ${name}`:route.participantId;
+        const title=name?`${route.participantId} · ${route.routeId||""} · ${name}`:`${route.participantId} · ${route.routeId||""}`;
         const cleanIcons={pending:"⏳",race:"🏃",finished:"🏁",result:"📥",discarded:"🚫"};
         const cleanLabels={pending:"Pendientes",race:"En carrera",finished:"Finalizados",result:"Finalizados con resultado",discarded:"Descartado"};
         const icon=cleanIcons[st.stage]||"⏳";
         const label=cleanLabels[st.stage]||"Pendientes";
-        return `<div class="step5-status-card ${st.cls}"><div class="step5-status-icon">${icon}</div><div class="step5-status-main"><b>${escapeHtml(title)} · ${escapeHtml(route.routeId||"")}</b><small>${escapeHtml(label)} · ${escapeHtml(st.hint)}</small></div></div>`;
+        return `<div class="step5-status-card ${st.cls}"><div class="step5-status-icon">${icon}</div><div class="step5-status-main"><b>${escapeHtml(title)}</b><small>${escapeHtml(label)} · ${escapeHtml(st.hint)}</small></div></div>`;
     }).join("");
     const activeCount=activeRoutes().length;
-    panel.innerHTML=`<div class="step5-status-title"><span>Estado de salidas y participantes</span><span>${activeCount}/${routes.length} activos</span></div>
-        <div class="step5-status-summary">
-            <span>⏳ Pendientes: ${counts.pending}</span>
-            <span>🏃 En carrera: ${counts.race}</span>
-            <span>🏁 Finalizados: ${counts.finished}</span>
-            <span>📥 Finalizados con resultado: ${counts.result}</span>
-            <span>🚫 Descartados: ${counts.discarded}</span>
+    const totalCount=routes.length;
+    const discardedCount=counts.discarded;
+    panel.innerHTML=`<div class="step5-status-title">
+            <span><span class="step5-status-title-main">Estado de salidas y participantes</span><span class="step5-status-title-sub">Control rápido de carrera: quién falta por salir, quién está corriendo, quién terminó y quién ya tiene resultado importado.</span></span>
+            <span class="step5-status-active-pill">${activeCount} de ${totalCount} recorridos activos<br><small>${discardedCount} descartado(s) / reserva</small></span>
         </div>
+        <div class="step5-status-summary step5-status-summary-clear">
+            <div class="step5-count-card pending"><span class="ico">⏳</span><span><b>Pendientes</b><small>Sin salida entregada</small></span><em>${counts.pending}</em></div>
+            <div class="step5-count-card race"><span class="ico">🏃</span><span><b>En carrera</b><small>Salida entregada y llegada pendiente</small></span><em>${counts.race}</em></div>
+            <div class="step5-count-card finished"><span class="ico">🏁</span><span><b>Finalizados</b><small>Llegada entregada; falta importar resultado</small></span><em>${counts.finished}</em></div>
+            <div class="step5-count-card result"><span class="ico">📥</span><span><b>Finalizados con resultado</b><small>Resultado importado en paso 6</small></span><em>${counts.result}</em></div>
+            <div class="step5-count-card discarded"><span class="ico">🚫</span><span><b>Descartados</b><small>No cuentan en carrera; material queda de reserva</small></span><em>${counts.discarded}</em></div>
+        </div>
+        <div class="step5-status-list-title">Detalle por participante</div>
         <div class="step5-status-grid">${cards}</div>`;
 }
 function ensureSkippedRoutesStore(){
