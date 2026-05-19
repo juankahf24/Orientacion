@@ -1333,12 +1333,13 @@ function initStep3RouteMapIfNeeded(){
         return;
     }
 
-    step3RouteMap=L.map("step3RouteMap",{zoomControl:true}).setView([40.4168,-3.7038],7);
+    const step3MaxZoom=22;
+    step3RouteMap=L.map("step3RouteMap",{zoomControl:true,maxZoom:step3MaxZoom,zoomSnap:.25,zoomDelta:.5,wheelPxPerZoomLevel:42}).setView([40.4168,-3.7038],7);
 
     step3RouteLayers={
-        mapant:L.tileLayer.wms("https://mapant.es/wms",{layers:"mapant",format:"image/png",transparent:false,version:"1.3.0",attribution:"© Mapant.es"}),
-        ign:L.tileLayer("https://www.ign.es/wmts/mapa-raster?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=MTN&STYLE=default&TILEMATRIXSET=GoogleMapsCompatible&FORMAT=image/jpeg&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",{attribution:"© IGN"}),
-        pnoa:L.tileLayer("https://www.ign.es/wmts/pnoa-ma?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=OI.OrthoimageCoverage&STYLE=default&TILEMATRIXSET=GoogleMapsCompatible&FORMAT=image/jpeg&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",{attribution:"© PNOA"})
+        mapant:L.tileLayer.wms("https://mapant.es/wms",{layers:"mapant",format:"image/png",transparent:false,version:"1.3.0",attribution:"© Mapant.es",maxZoom:step3MaxZoom}),
+        ign:L.tileLayer("https://www.ign.es/wmts/mapa-raster?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=MTN&STYLE=default&TILEMATRIXSET=GoogleMapsCompatible&FORMAT=image/jpeg&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",{attribution:"© IGN",maxNativeZoom:18,maxZoom:step3MaxZoom}),
+        pnoa:L.tileLayer("https://www.ign.es/wmts/pnoa-ma?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=OI.OrthoimageCoverage&STYLE=default&TILEMATRIXSET=GoogleMapsCompatible&FORMAT=image/jpeg&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",{attribution:"© PNOA",maxNativeZoom:19,maxZoom:step3MaxZoom})
     };
 
     step3RouteBaseLayer=step3RouteLayers.mapant.addTo(step3RouteMap);
@@ -1381,7 +1382,7 @@ function drawStep3MapRoute(idx){
             .addTo(step3RouteMarkers);
     });
 
-    step3RouteMap.fitBounds(latlngs,{padding:[35,35]});
+    step3RouteMap.fitBounds(latlngs,{padding:[22,22],maxZoom:20});
     setTimeout(()=>step3RouteMap.invalidateSize(),120);
 }
 
