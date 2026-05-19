@@ -146,6 +146,23 @@
             <div id="organizerFinishQrBox" class="organizer-qr-box">QR pendiente</div>
             <div id="finishQrDeliveryConfirmPanel" class="status warn step5-confirm-panel" style="display:block;margin-top:10px;">🏁 QR LLEGADA pendiente de mostrar. Mostrarlo en pantalla todavía no cuenta como entregado.</div>
             <div id="organizerFinishPayload" class="organizer-payload"></div>
+
+            <div id="step5ResultScanBlock" class="status ok" style="margin-top:14px;">
+                <b>3️⃣ QR RESULTADO</b><br>
+                Cuando confirmes la llegada, escanea aquí el QR final que te enseña el participante. Se importará directamente en el paso 6.
+                <div class="btn-row" style="margin-top:10px;">
+                    <button class="btn green" onclick="startStep5ResultQrCamera()">📷 ESCANEAR QR RESULTADO</button>
+                </div>
+                <div id="step5ResultQrCameraPanel" class="block" style="display:none;margin-top:12px;">
+                    <label>LECTOR QR RESULTADO</label>
+                    <video id="step5ResultQrVideo" playsinline muted style="width:100%;max-height:380px;border-radius:18px;background:#111;object-fit:cover;"></video>
+                    <canvas id="step5ResultQrCanvas" style="display:none;"></canvas>
+                    <div id="step5ResultQrCameraStatus" class="status warn" style="margin-top:10px;">Preparando cámara...</div>
+                    <div class="btn-row">
+                        <button class="btn red" onclick="stopStep5ResultQrCamera()">DETENER CÁMARA</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -185,20 +202,9 @@
     <div class="help">Cuando el participante escanee LLEGADA, su móvil mostrará un QR final. Escanéalo aquí o pega el texto del resultado.</div>
     <textarea id="step5ResultImportInput" placeholder="ORI|RESULT|EVENTO|P01|..." style="min-height:120px;"></textarea>
     <div class="btn-row">
-      <button class="btn green" onclick="startStep5ResultQrCamera()">📷 ESCANEAR QR RESULTADO</button>
       <button class="btn" onclick="importStep5ResultFromInput()">📥 IMPORTAR MANUAL</button>
       <button class="btn secondary" onclick="downloadImportedResultsCsv()">📊 EXPORTAR CSV</button>
       <button class="btn red" onclick="clearImportedResults()">🧹 LIMPIAR RESULTADOS</button>
-    </div>
-
-    <div id="step5ResultQrCameraPanel" class="block" style="display:none;margin-top:12px;">
-      <label>LECTOR QR RESULTADO</label>
-      <video id="step5ResultQrVideo" playsinline muted style="width:100%;max-height:380px;border-radius:18px;background:#111;object-fit:cover;"></video>
-      <canvas id="step5ResultQrCanvas" style="display:none;"></canvas>
-      <div id="step5ResultQrCameraStatus" class="status warn" style="margin-top:10px;">Preparando cámara...</div>
-      <div class="btn-row">
-        <button class="btn red" onclick="stopStep5ResultQrCamera()">DETENER CÁMARA</button>
-      </div>
     </div>
   </div>
 
