@@ -1704,10 +1704,7 @@ function renderStartFlowStatusPanel(){
     panel.innerHTML=`<div class="step5-status-title"><span>Estado de salidas y participantes</span><span>${activeCount}/${routes.length} activos</span></div>
         <div class="step5-status-summary">
             <span>⏳ Pendientes: ${counts.pending+counts.prepared}</span>
-            <span>1️⃣ QR participante mostrado: ${counts.participant}</span>
-            <span>2️⃣ Salida mostrada sin confirmar: ${counts.startShown}</span>
             <span>✅ Salida entregada: ${counts.startDelivered}</span>
-            <span>🏁 Llegada mostrada sin confirmar: ${counts.finishShown}</span>
             <span>🏃 En carrera: ${inRace}</span>
             <span>🏁 Finalizados: ${counts.finishDelivered}</span>
             <span>📥 Finalizados con resultado: ${counts.result}</span>
