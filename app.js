@@ -1633,7 +1633,7 @@ function startFlowStatusForRoute(route){
     if(routeHasImportedResult(route))return {stage:"result",cls:"ok",icon:"📥",label:"Finalizados con resultado",hint:"QR final importado"};
     const st=getStartFlowStatus(route);
     if(st.finishQrDeliveredAt)return {stage:"finished",cls:"ok",icon:"🏁",label:"Finalizados",hint:"QR llegada entregado · esperando QR final de resultado"};
-    if(st.startQrDeliveredAt||st.finishQrShownAt)return {stage:"race",cls:"ok",icon:"🏃",label:"En carrera",hint:"Salida entregada · llegada pendiente"};
+    if(st.startQrDeliveredAt)return {stage:"race",cls:"ok",icon:"🏃",label:"En carrera",hint:"Salida entregada · llegada pendiente"};
     return {stage:"pending",cls:"pending",icon:"⏳",label:"Pendientes",hint:"Aún sin salida entregada"};
 }
 
@@ -1891,7 +1891,7 @@ function step5RouteDropdownStatus(route){
     if(routeHasImportedResult(route))return "📥 Finalizados con resultado";
     const st=getStartFlowStatus(route);
     if(st.finishQrDeliveredAt)return "🏁 Finalizados";
-    if(st.startQrDeliveredAt||st.finishQrShownAt)return "🏃 En carrera";
+    if(st.startQrDeliveredAt)return "🏃 En carrera";
     return "⏳ Pendientes";
 }
 
@@ -2125,6 +2125,11 @@ function setStep5DeliveryConfirmPanel(kind,route=null,mode="idle"){
         panel.innerHTML=`✅ ${isFinish?"QR de llegada":"QR de salida"} entregado confirmado<br><b>${escapeHtml(participantDisplay(route.participantId,route.routeId))}</b><span class="step5-confirm-small">El estado ya está contado como confirmado.</span>`;
         return;
     }
+    if(isFinish&&!st.startQrDeliveredAt){
+        panel.className="status warn step5-confirm-panel";
+        panel.innerHTML=`🏁 QR LLEGADA ${shown?"mostrado":"pendiente de mostrar"}<br><b>${escapeHtml(participantDisplay(route.participantId,route.routeId))}</b><span class="step5-confirm-small">Este participante sigue pendiente porque todavía no has confirmado el QR de salida entregado. Primero confirma la salida; seleccionar llegada no lo pone en carrera.</span>`;
+        return;
+    }
     const btnLabel=isFinish?"✅ CONFIRMAR QR LLEGADA ENTREGADO":"✅ CONFIRMAR QR SALIDA ENTREGADO";
     const fn=isFinish?"confirmFinishQrDelivered()":"confirmStartQrDelivered()";
     const intro=shown
@@ -2162,6 +2167,7 @@ function confirmFinishQrDelivered(){
     if(!route)return toast("No hay recorrido seleccionado");
     if(isRouteSkipped(route))return toast("Este recorrido está descartado");
     const st=getStartFlowStatus(route);
+    if(!st.startQrDeliveredAt)return toast("Primero confirma el QR de salida entregado");
     if(!st.finishQrShownAt)return toast("Primero muestra el QR de llegada");
     markStartFlowStatus(route.participantId,"finishDelivered");
     setStep5DeliveryConfirmPanel("finish",route,"finish");
@@ -2314,8 +2320,14 @@ function renderFinishFlowQr(){
     const info=document.getElementById("finishFlowInfo");
     refreshParticipantNameInputs();
     if(info){
-        info.className="status ok";
-        info.innerHTML=`Enseña este QR de LLEGADA a <b>${escapeHtml(participantDisplay(pid,route.routeId))}</b>. Después su móvil debe mostrarte el QR final de resultado.`;
+        const flowState=getStartFlowStatus(route);
+        if(!flowState.startQrDeliveredAt){
+            info.className="status warn";
+            info.innerHTML=`Has seleccionado la LLEGADA de <b>${escapeHtml(participantDisplay(pid,route.routeId))}</b>, pero todavía no consta la salida entregada. Esto no lo pone en carrera. Primero confirma QR SALIDA entregado.`;
+        }else{
+            info.className="status ok";
+            info.innerHTML=`Enseña este QR de LLEGADA a <b>${escapeHtml(participantDisplay(pid,route.routeId))}</b>. Después su móvil debe mostrarte el QR final de resultado.`;
+        }
     }
 
     renderOrganizerQr("organizerFinishQrBox","organizerFinishPayload",payload,`LLEGADA · ${participantDisplay(pid,route.routeId)}`);
