@@ -256,5 +256,26 @@
 <!-- ROUTE GENERATION LOADER END -->
 <div id="toast" class="toast"></div>
 <script src="app.js"></script>
+<script>
+(function(){
+  if (!("serviceWorker" in navigator) || !("caches" in window) || !/^https?:$/.test(location.protocol)) return;
+  async function cacheCurrentMilitopoPage(){
+    try {
+      const cache = await caches.open("militopo-page-snapshot-v52");
+      await cache.add(new Request(location.href, { cache: "reload" })).catch(function(){});
+      await Promise.allSettled(["./", "./index.html", "./app.js", "./styles.css", "./qr.js"].map(function(url){
+        return cache.add(new Request(url, { cache: "reload" }));
+      }));
+    } catch (e) {}
+  }
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" })
+      .then(function(){ return navigator.serviceWorker.ready; })
+      .then(cacheCurrentMilitopoPage)
+      .catch(cacheCurrentMilitopoPage);
+  });
+})();
+</script>
+
 </body>
 </html>
