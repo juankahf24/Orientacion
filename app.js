@@ -1267,13 +1267,21 @@ function renderRoutes(){
     const warnings=Array.isArray(state.routeWarnings)?state.routeWarnings:[];
     const buckets=state.difficultyBuckets||{};
     const q=state.routeQualitySummary||buildRouteQualitySummary(state.metrics||[]);
-    const reparto=buckets.total?` · dificultad equilibrada: ${buckets.faciles} fácil / ${buckets.medias} media / ${buckets.dificiles} difícil`:"";
-    const calidad=` · calidad: ${q.clean||0} limpios / ${q.acceptable||0} aceptables / ${q.forced||0} forzados`;
+    const dificultad=buckets.total?`<div>Dificultad: <b>${buckets.faciles} fácil</b> / <b>${buckets.medias} media</b> / <b>${buckets.dificiles} difícil</b></div>`:"";
+    const calidad=`<div>Calidad: <b>${q.clean||0} limpios</b> / <b>${q.acceptable||0} aceptables</b> / <b>${q.forced||0} forzados</b></div>`;
+    const avisos=warnings.length?`<div style="margin-top:10px;"><b>⚠️ Avisos de calidad</b></div>${warnings.slice(0,6).map(w=>`<div style="margin-top:6px;">${escapeHtml(w)}</div>`).join("")}`:"";
     const hasForced=(q.forced||0)>0 || warnings.some(w=>/forzado/i.test(w));
     const routeSummary=document.getElementById("routeSummary");
     if(routeSummary){
         routeSummary.className=hasForced?"status warn":"status ok";
-        routeSummary.innerHTML=`✅ ${state.routes.length} recorridos generados · distancia media ${avgD} km · desnivel positivo medio ${avgC} m · trazado lógico profesional · sin zigzag innecesario · coincidencias de tramos minimizadas${reparto}${calidad}.${warnings.length?`<br><br>⚠️ Avisos de calidad:<br>${warnings.slice(0,6).map(escapeHtml).join("<br>")}`:""}`;
+        routeSummary.innerHTML=`<div style="display:grid;gap:6px;line-height:1.45;">
+            <div><b>✅ ${state.routes.length} recorridos generados</b></div>
+            <div>Distancia media: <b>${avgD} km</b></div>
+            <div>Desnivel positivo medio: <b>${avgC} m</b></div>
+            ${dificultad}
+            ${calidad}
+            ${avisos}
+        </div>`;
     }
 
     state.routes.forEach((r,i)=>{
