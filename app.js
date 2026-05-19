@@ -1898,7 +1898,9 @@ function step5RouteDropdownStatus(route){
 
 function step5RouteDropdownText(route){
     if(!route)return "⏳ Pendientes";
-    return `${participantDisplay(route.participantId,route.routeId)} · ${step5RouteDropdownStatus(route)}`;
+    const name=participantName(route.participantId);
+    const identity=name?`${route.participantId} · ${route.routeId||""} · ${name}`:`${route.participantId} · ${route.routeId||""}`;
+    return `${identity}\n${step5RouteDropdownStatus(route)}`;
 }
 
 function updateOrganizerParticipantSelects(opts={}){
@@ -2291,6 +2293,7 @@ function importResultPayload(raw){
     saveState();
     renderImportedResults();
     renderResultsControl();
+    if(typeof updateOrganizerParticipantSelects==="function")updateOrganizerParticipantSelects({keepQr:true});
     renderStartFlowStatusPanel();
 }
 
