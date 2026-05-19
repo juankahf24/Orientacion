@@ -5633,14 +5633,24 @@ function renderResultsControl(){
     renderStartFlowStatusPanel();
 }
 
+function resultCompletedControlsCount(result){
+    return (result?.scans||[]).filter(s=>(s?.st||s?.status)==="correct").length;
+}
+
 function sortedImportedResults(){
     return [...activeImportedResults()].sort((a,b)=>{
-        const ac=a.completed?0:1,bc=b.completed?0:1;
-        if(ac!==bc)return ac-bc;
+        const aControls=resultCompletedControlsCount(a);
+        const bControls=resultCompletedControlsCount(b);
+        if(aControls!==bControls)return bControls-aControls;
+
         const am=resultMs(a),bm=resultMs(b);
         if(am!==null&&bm!==null&&am!==bm)return am-bm;
         if(am!==null&&bm===null)return -1;
         if(am===null&&bm!==null)return 1;
+
+        const ac=a.completed?0:1,bc=b.completed?0:1;
+        if(ac!==bc)return ac-bc;
+
         return String(a.participantId).localeCompare(String(b.participantId),"es",{numeric:true});
     });
 }
@@ -5726,8 +5736,8 @@ function renderClassificationTable(){
             const ms=resultMs(r);
             const time=ms!==null?formatDuration(ms):"--";
             const difficulty=routeDifficultyForResult(r);
-            const controls=(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
-            const missing=(r.missingControls||[]).join(", ");
+            const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
+            const missingCount=Array.isArray(r.missingControls)?r.missingControls.length:0;
             const cls=classificationRankClass(displayRank,r.completed);
             return `<tr class="${cls}">
                 <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${displayRank}</td>
@@ -5737,7 +5747,7 @@ function renderClassificationTable(){
                 <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${escapeHtml(difficulty)}</td>
                 <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${time}</td>
                 <td style="vertical-align:top;text-align:center;white-space:normal;">${controls}</td>
-                <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${escapeHtml(missing||"--")}</td>
+                <td style="vertical-align:top;text-align:center;white-space:normal;">${missingCount}</td>
                 <td style="vertical-align:top;text-align:center;white-space:normal;"><span class="result-chip" style="display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:normal;line-height:1.1;max-width:100%;padding:.35em .55em;">${r.completed?"✅ OK":"⚠️ AVISO"}</span></td>
             </tr>`;
         }).join("")}</tbody>
@@ -5860,7 +5870,7 @@ function classificationRowsForExport(){
     sortedImportedResults().forEach(r=>{
         if(r.completed)rank++;
         const ms=resultMs(r);
-        const controls=(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
+        const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
         rows.push([
             r.completed?rank:"--",
             r.participantId||"",
@@ -5869,7 +5879,7 @@ function classificationRowsForExport(){
             routeDifficultyForResult(r),
             ms!==null?formatDuration(ms):"--",
             controls,
-            (r.missingControls||[]).join(", ")||"--",
+            (Array.isArray(r.missingControls)?r.missingControls.length:0),
             r.completed?"OK":"AVISO"
         ]);
     });
@@ -6012,7 +6022,7 @@ function downloadImportedResultsCsv(){
     sortedImportedResults().forEach(r=>{
         if(r.completed)rank++;
         const ms=resultMs(r);
-        const controls=(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
+        const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
         rows.push([
             r.completed?rank:"",
             r.participantId,
@@ -6307,8 +6317,8 @@ renderClassificationTable=function(){
             const displayRank=r.completed?rank:"--";
             const ms=resultMs(r);
             const time=ms!==null?formatDuration(ms):"--";
-            const controls=(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
-            const missing=(r.missingControls||[]).join(", ")||"--";
+            const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
+            const missingCount=Array.isArray(r.missingControls)?r.missingControls.length:0;
             const cls=classificationRankClass(displayRank,r.completed);
             const estado=r.completed
                 ? `<div class="estado-v16"><span class="ico">✅</span><span class="txt">OK</span></div>`
@@ -6320,7 +6330,7 @@ renderClassificationTable=function(){
                 <td class="center">${escapeHtml(r.routeId||"--")}</td>
                 <td class="center">${escapeHtml(time)}</td>
                 <td class="center">${controls}</td>
-                <td>${escapeHtml(missing)}</td>
+                <td class="center">${missingCount}</td>
                 <td class="center">${estado}</td>
             </tr>`;
         }).join("")}</tbody>
@@ -6371,7 +6381,7 @@ classificationRowsForExport=function(){
     sortedImportedResults().forEach(r=>{
         if(r.completed)rank++;
         const ms=resultMs(r);
-        const controls=(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
+        const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
         rows.push([
             r.completed?rank:"--",
             r.participantId||"",
@@ -6379,7 +6389,7 @@ classificationRowsForExport=function(){
             r.routeId||"--",
             ms!==null?formatDuration(ms):"--",
             controls,
-            (r.missingControls||[]).join(", ")||"--",
+            (Array.isArray(r.missingControls)?r.missingControls.length:0),
             r.completed?"OK":"AVISO"
         ]);
     });
@@ -6571,8 +6581,8 @@ downloadClassificationExcel=async function(){
                     const displayRank=r.completed?rank:"--";
                     const ms=typeof resultMs==="function"?resultMs(r):null;
                     const time=ms!==null&&typeof formatDuration==="function"?formatDuration(ms):"--";
-                    const controls=(r.scans||[]).filter(s=>(s.st||s.status)==="correct").length;
-                    const missing=(r.missingControls||[]).join(", ")||"--";
+                    const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>(s.st||s.status)==="correct").length;
+                    const missingCount=Array.isArray(r.missingControls)?r.missingControls.length:0;
                     const cls=typeof classificationRankClass==="function"?classificationRankClass(displayRank,r.completed):"";
                     const difficulty=routeDifficultyForResult(r);
                     return `<tr class="${cls}">
@@ -6583,7 +6593,7 @@ downloadClassificationExcel=async function(){
                         <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;font-weight:900;">${esc(difficulty)}</td>
                         <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${esc(time)}</td>
                         <td style="vertical-align:top;text-align:center;white-space:normal;">${controls}</td>
-                        <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${esc(missing)}</td>
+                        <td style="vertical-align:top;text-align:center;white-space:normal;">${missingCount}</td>
                         <td style="vertical-align:top;text-align:center;white-space:normal;"><span class="result-chip" style="display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;line-height:1.05;white-space:normal;padding:.35em .45em;min-width:0;max-width:100%;"><span>${r.completed?"✅":"⚠️"}</span><span>${r.completed?"OK":"AVISO"}</span></span></td>
                     </tr>`;
                 }).join("")}</tbody>
@@ -6634,7 +6644,7 @@ downloadClassificationExcel=async function(){
         data.forEach(r=>{
             if(r.completed)rank++;
             const ms=typeof resultMs==="function"?resultMs(r):null;
-            const controls=(r.scans||[]).filter(s=>(s.st||s.status)==="correct").length;
+            const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>(s.st||s.status)==="correct").length;
             rows.push([
                 r.completed?rank:"--",
                 r.participantId||"",
@@ -6643,7 +6653,7 @@ downloadClassificationExcel=async function(){
                 routeDifficultyForResult(r),
                 ms!==null&&typeof formatDuration==="function"?formatDuration(ms):"--",
                 controls,
-                (r.missingControls||[]).join(", ")||"--",
+                (Array.isArray(r.missingControls)?r.missingControls.length:0),
                 r.completed?"OK":"AVISO"
             ]);
         });
