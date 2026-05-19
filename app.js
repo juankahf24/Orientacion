@@ -1834,6 +1834,8 @@ function updateRouteDiscardUi(){
         }
     }
     renderStartFlowStatusPanel();
+    if(document.getElementById("startFlowParticipantPicker"))renderStep5RoutePicker("start");
+    if(document.getElementById("finishFlowParticipantPicker"))renderStep5RoutePicker("finish");
 }
 
 function discardCurrentStartRoute(){
@@ -1903,6 +1905,133 @@ function step5RouteDropdownText(route){
     return `${identity}\n${step5RouteDropdownStatus(route)}`;
 }
 
+
+function step5RouteIdentityText(route){
+    if(!route)return "Sin recorrido";
+    const name=participantName(route.participantId);
+    return name?`${route.participantId} · ${route.routeId||""} · ${name}`:`${route.participantId} · ${route.routeId||""}`;
+}
+
+function ensureStep5RoutePickerStyles(){
+    if(document.getElementById("step5RoutePickerStyles"))return;
+    const style=document.createElement("style");
+    style.id="step5RoutePickerStyles";
+    style.textContent=`
+.step5-native-hidden{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+.step5-route-picker{width:100%;margin:8px 0 10px;position:relative}
+.step5-route-picker-current,.step5-route-option{width:100%;text-align:left;border-radius:18px;border:1px solid rgba(230,188,122,.42);background:linear-gradient(180deg,rgba(89,61,36,.95),rgba(51,36,25,.96));color:#f5e6c8;font-family:inherit;font-weight:900;padding:13px 14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+.step5-route-picker-current{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;min-height:64px}
+.step5-route-picker-current:after{content:"⌄";grid-column:2;grid-row:1/3;font-size:1.25rem;color:#f0c16a;align-self:center}
+.step5-route-picker.open .step5-route-picker-current:after{content:"⌃"}
+.step5-route-line{display:block;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.2;letter-spacing:.045em}
+.step5-route-status{display:block;margin-top:5px;color:#f0c16a;white-space:normal;line-height:1.2;letter-spacing:.045em}
+.step5-route-menu{display:none;margin-top:8px;max-height:330px;overflow:auto;border-radius:20px;border:1px solid rgba(230,188,122,.32);background:rgba(12,20,10,.98);padding:7px;box-shadow:0 18px 42px rgba(0,0,0,.45);gap:7px}
+.step5-route-picker.open .step5-route-menu{display:grid}
+.step5-route-option{display:block;margin:0;cursor:pointer;background:rgba(255,255,255,.055);border-color:rgba(230,188,122,.25);box-shadow:none;min-height:62px}
+.step5-route-option.selected{border-color:rgba(240,193,106,.85);background:rgba(240,193,106,.13)}
+.step5-route-option.discarded{border-color:rgba(200,94,69,.55);background:rgba(200,94,69,.10)}
+.step5-route-empty{padding:12px;color:#cbb894;font-weight:900}
+@media(max-width:760px){.step5-route-picker-current,.step5-route-option{border-radius:16px;padding:12px 13px}.step5-route-menu{max-height:300px}.step5-route-line{font-size:.92rem}.step5-route-status{font-size:.86rem}}
+`;
+    document.head.appendChild(style);
+}
+
+function step5RoutePickerMeta(kind){
+    return kind==="finish"
+        ? {selectId:"finishFlowParticipantSelect",pickerId:"finishFlowParticipantPicker",onSelect:()=>renderFinishFlowQr()}
+        : {selectId:"startFlowParticipantSelect",pickerId:"startFlowParticipantPicker",onSelect:()=>setStartFlowParticipantFromSelect()};
+}
+
+function ensureStep5RoutePickers(){
+    ensureStep5RoutePickerStyles();
+    ["start","finish"].forEach(kind=>{
+        const meta=step5RoutePickerMeta(kind);
+        const sel=document.getElementById(meta.selectId);
+        if(!sel)return;
+        sel.classList.add("step5-native-hidden");
+        let picker=document.getElementById(meta.pickerId);
+        if(!picker){
+            picker=document.createElement("div");
+            picker.id=meta.pickerId;
+            picker.className="step5-route-picker";
+            sel.insertAdjacentElement("beforebegin",picker);
+        }
+        renderStep5RoutePicker(kind);
+    });
+}
+
+function toggleStep5RoutePicker(kind){
+    const meta=step5RoutePickerMeta(kind);
+    const picker=document.getElementById(meta.pickerId);
+    if(!picker)return;
+    const willOpen=!picker.classList.contains("open");
+    document.querySelectorAll(".step5-route-picker.open").forEach(el=>el.classList.remove("open"));
+    if(willOpen)picker.classList.add("open");
+}
+
+function chooseStep5RouteFromPicker(kind,pid){
+    const meta=step5RoutePickerMeta(kind);
+    const sel=document.getElementById(meta.selectId);
+    if(!sel)return;
+    sel.value=pid;
+    const picker=document.getElementById(meta.pickerId);
+    if(picker)picker.classList.remove("open");
+    meta.onSelect();
+    renderStep5RoutePicker(kind);
+}
+
+function renderStep5RoutePicker(kind){
+    const meta=step5RoutePickerMeta(kind);
+    const sel=document.getElementById(meta.selectId);
+    const picker=document.getElementById(meta.pickerId);
+    if(!sel||!picker)return;
+    const routes=state.routes||[];
+    const selectedRoute=routes.find(r=>String(r.participantId)===String(sel.value))||routes[0]||null;
+    picker.innerHTML="";
+
+    const current=document.createElement("button");
+    current.type="button";
+    current.className="step5-route-picker-current";
+    current.onclick=()=>toggleStep5RoutePicker(kind);
+    const currentMain=document.createElement("span");
+    currentMain.style.minWidth="0";
+    const currentIdentity=document.createElement("span");
+    currentIdentity.className="step5-route-line";
+    currentIdentity.textContent=selectedRoute?step5RouteIdentityText(selectedRoute):"No hay recorridos";
+    const currentStatus=document.createElement("span");
+    currentStatus.className="step5-route-status";
+    currentStatus.textContent=selectedRoute?step5RouteDropdownStatus(selectedRoute):"⏳ Pendientes";
+    currentMain.appendChild(currentIdentity);
+    currentMain.appendChild(currentStatus);
+    current.appendChild(currentMain);
+    picker.appendChild(current);
+
+    const menu=document.createElement("div");
+    menu.className="step5-route-menu";
+    if(!routes.length){
+        const empty=document.createElement("div");
+        empty.className="step5-route-empty";
+        empty.textContent="No hay recorridos generados";
+        menu.appendChild(empty);
+    }else{
+        routes.forEach(route=>{
+            const opt=document.createElement("button");
+            opt.type="button";
+            opt.className="step5-route-option"+(String(route.participantId)===String(sel.value)?" selected":"")+(isRouteSkipped(route)?" discarded":"");
+            opt.onclick=()=>chooseStep5RouteFromPicker(kind,route.participantId);
+            const identity=document.createElement("span");
+            identity.className="step5-route-line";
+            identity.textContent=step5RouteIdentityText(route);
+            const status=document.createElement("span");
+            status.className="step5-route-status";
+            status.textContent=step5RouteDropdownStatus(route);
+            opt.appendChild(identity);
+            opt.appendChild(status);
+            menu.appendChild(opt);
+        });
+    }
+    picker.appendChild(menu);
+}
 function updateOrganizerParticipantSelects(opts={}){
     ensureParticipantNamesStore();
     ensureSkippedRoutesStore();
@@ -1928,6 +2057,7 @@ function updateOrganizerParticipantSelects(opts={}){
 
     ensureParticipantNameUi();
     refreshParticipantNameInputs();
+    ensureStep5RoutePickers();
     updateRouteDiscardUi();
 }
 
