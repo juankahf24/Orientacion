@@ -5481,8 +5481,45 @@ function renderResultsControl(){
 
     const summary=document.getElementById("resultsControlSummary");
     if(summary){
-        summary.className=warnings||pending?"status warn":"status ok";
-        summary.innerHTML=`Evento <b>${escapeHtml(state.eventId)}</b><br>${imported}/${totalParticipants} resultados importados · ${completed} correctos · ${warnings} con avisos · ${pending} pendientes${discarded?` · ${discarded} descartados por organizador`:""}.`;
+        const needsReview=warnings||pending;
+        const progress=totalParticipants?Math.round((imported/totalParticipants)*100):0;
+        const statusText=totalParticipants?`${imported} de ${totalParticipants} resultados importados`:"Sin recorridos activos";
+        const reviewText=!totalParticipants?"Genera recorridos para activar el control de resultados":(!needsReview?"Evento completo: todos los resultados están importados y correctos":(pending?"Aún quedan resultados pendientes de importar":"Hay resultados con avisos para revisar"));
+        const card=(icon,title,value,hint)=>`
+            <div style="display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:14px 14px;border:1px solid rgba(255,255,255,.18);border-radius:18px;background:rgba(0,0,0,.16);">
+                <div style="font-size:1.7rem;line-height:1;">${icon}</div>
+                <div style="min-width:0;">
+                    <div style="font-weight:900;letter-spacing:.04em;text-transform:uppercase;line-height:1.15;">${title}</div>
+                    <div style="opacity:.78;font-size:.92rem;line-height:1.25;margin-top:3px;">${hint}</div>
+                </div>
+                <div style="font-size:2rem;font-weight:900;line-height:1;white-space:nowrap;">${value}</div>
+            </div>`;
+        summary.className=needsReview?"status warn":"status ok";
+        summary.innerHTML=`
+            <div style="display:grid;gap:14px;text-align:left;">
+                <div style="display:grid;gap:6px;padding:14px;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);">
+                    <div style="opacity:.78;font-size:.82rem;letter-spacing:.12em;text-transform:uppercase;">Evento</div>
+                    <div style="font-size:1.15rem;font-weight:900;word-break:break-word;">${escapeHtml(state.eventId||"--")}</div>
+                    <div style="font-weight:800;line-height:1.25;">${statusText}</div>
+                    <div style="opacity:.84;line-height:1.3;">${reviewText}</div>
+                    <div style="height:10px;border-radius:999px;background:rgba(0,0,0,.25);overflow:hidden;margin-top:6px;border:1px solid rgba(255,255,255,.12);">
+                        <div style="height:100%;width:${Math.max(0,Math.min(100,progress))}%;border-radius:999px;background:rgba(255,244,190,.85);"></div>
+                    </div>
+                    <div style="opacity:.76;font-size:.9rem;">Progreso de importación: ${progress}%</div>
+                </div>
+
+                <div style="display:grid;gap:10px;">
+                    ${card("📥","Resultados importados",`${imported}/${totalParticipants}`,"QR final recibido del participante")}
+                    ${card("✅","Correctos",completed,"Recorridos completos sin avisos")}
+                    ${card("⚠️","Con avisos",warnings,"Revisar controles pendientes, repetidos o fuera de orden")}
+                    ${card("⏳","Pendientes",pending,"Faltan por importar al terminar")}
+                    ${discarded?card("🚫","Descartados / reserva",discarded,"No cuentan como pendientes de resultados"):""}
+                </div>
+            </div>`;
+        const oldMetricGrid=summary.nextElementSibling;
+        if(oldMetricGrid&&oldMetricGrid.classList&&oldMetricGrid.classList.contains("grid")){
+            oldMetricGrid.style.display="none";
+        }
     }
 
     const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
