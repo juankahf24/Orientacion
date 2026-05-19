@@ -1542,7 +1542,7 @@ function createParticipantNameField(id,labelText,onSave){
     const wrap=document.createElement("div");
     wrap.className="participant-name-field";
     wrap.style.cssText="margin-top:10px;padding:10px;border:1px solid rgba(240,193,106,.35);border-radius:14px;background:rgba(255,255,255,.05);";
-    wrap.innerHTML=`<label style="display:block;margin-bottom:6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#f0c16a;">${labelText}</label><input id="${id}" type="text" placeholder="Nombre y apellidos" autocomplete="off" autocapitalize="words" spellcheck="false" style="width:100%;"><div id="${id}Help" class="help" style="margin-top:6px;">Escribe el nombre completo. Se guardará al cambiar de campo o al enseñar el QR.</div>`;
+    wrap.innerHTML=`<label style="display:block;margin-bottom:6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#f0c16a;">${labelText}</label><input id="${id}" type="text" placeholder="Nombre y apellidos" autocomplete="off" autocapitalize="words" spellcheck="false" style="width:100%;">`;
     const input=wrap.querySelector("input");
     const save=()=>onSave(input.value);
     input.addEventListener("change",save);
