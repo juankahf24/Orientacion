@@ -1,3 +1,4 @@
+/* MILITOPO_V39_ESTADO_PASO5_ICONOS_LIMPIOS */
 const state={eventId:"",eventName:"ENTRENAMIENTO ORIENTACIÓN",
     planScale:10000,
     planEquidistanceM:5,participantCount:10,controlCount:25,controlsPerRoute:8,maxControlReuse:6,points:{},routes:[],metrics:[],elevations:{},participantLogs:{},participantNames:{},skippedRoutes:{},importedResults:[]};let map=null,layers={},currentLayer=null,markersLayer=null,routeLayer=null,userLocationMarker=null,userAccuracyCircle=null,selectedPointId="START";let currentAppStep=1;let __autoSaveTimer=null;let selectedIofPointId="START";
@@ -1692,7 +1693,11 @@ function renderStartFlowStatusPanel(){
         else counts.pending++;
         const name=resultParticipantName(route.participantId);
         const title=name?`${route.participantId} · ${name}`:route.participantId;
-        return `<div class="step5-status-card ${st.cls}"><div class="step5-status-icon">${st.icon}</div><div class="step5-status-main"><b>${escapeHtml(title)} · ${escapeHtml(route.routeId||"")}</b><small>${escapeHtml(st.label)} · ${escapeHtml(st.hint)}</small></div></div>`;
+        const cleanIcons={pending:"⏳",race:"🏃",finished:"🏁",result:"📥",discarded:"🚫"};
+        const cleanLabels={pending:"Pendientes",race:"En carrera",finished:"Finalizados",result:"Finalizados con resultado",discarded:"Descartado"};
+        const icon=cleanIcons[st.stage]||"⏳";
+        const label=cleanLabels[st.stage]||"Pendientes";
+        return `<div class="step5-status-card ${st.cls}"><div class="step5-status-icon">${icon}</div><div class="step5-status-main"><b>${escapeHtml(title)} · ${escapeHtml(route.routeId||"")}</b><small>${escapeHtml(label)} · ${escapeHtml(st.hint)}</small></div></div>`;
     }).join("");
     const activeCount=activeRoutes().length;
     panel.innerHTML=`<div class="step5-status-title"><span>Estado de salidas y participantes</span><span>${activeCount}/${routes.length} activos</span></div>
