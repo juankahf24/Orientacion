@@ -1704,14 +1704,14 @@ function renderStartFlowStatusPanel(){
     const totalCount=routes.length;
     const discardedCount=counts.discarded;
     panel.innerHTML=`<div class="step5-status-title">
-            <span><span class="step5-status-title-main">Estado de salidas y participantes</span><span class="step5-status-title-sub">Control rápido de carrera: quién falta por salir, quién está corriendo, quién terminó y quién ya tiene resultado importado.</span></span>
+            <span><span class="step5-status-title-main">Estado de salidas y participantes</span></span>
             <span class="step5-status-active-pill">${activeCount} de ${totalCount} recorridos activos<br><small>${discardedCount} descartado(s) / reserva</small></span>
         </div>
         <div class="step5-status-summary step5-status-summary-clear">
             <div class="step5-count-card pending"><span class="ico">⏳</span><span><b>Pendientes</b><small>Sin salida entregada</small></span><em>${counts.pending}</em></div>
             <div class="step5-count-card race"><span class="ico">🏃</span><span><b>En carrera</b><small>Salida entregada y llegada pendiente</small></span><em>${counts.race}</em></div>
             <div class="step5-count-card finished"><span class="ico">🏁</span><span><b>Finalizados</b><small>Llegada entregada; falta importar resultado</small></span><em>${counts.finished}</em></div>
-            <div class="step5-count-card result"><span class="ico">📥</span><span><b>Finalizados con resultado</b><small>Resultado importado en paso 6</small></span><em>${counts.result}</em></div>
+            <div class="step5-count-card result"><span class="ico">📥</span><span><b>Finalizados con resultado</b><small>Resultado importado del participante al terminar</small></span><em>${counts.result}</em></div>
             <div class="step5-count-card discarded"><span class="ico">🚫</span><span><b>Descartados</b><small>No cuentan en carrera; material queda de reserva</small></span><em>${counts.discarded}</em></div>
         </div>
         <div class="step5-status-list-title">Detalle por participante</div>
