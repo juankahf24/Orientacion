@@ -1611,6 +1611,7 @@ function markStartFlowStatus(pid,field){
     }
     store[key]=current;
     saveState();
+    if(typeof updateOrganizerParticipantSelects==="function")updateOrganizerParticipantSelects({keepQr:true});
     renderStartFlowStatusPanel();
     return current;
 }
@@ -1885,36 +1886,43 @@ function resultParticipantName(resultOrPid){
 
 let organizerStartIndex=0;
 
+function step5RouteDropdownStatus(route){
+    if(!route)return "⏳ Pendientes";
+    if(isRouteSkipped(route))return "🚫 Descartado";
+    if(routeHasImportedResult(route))return "📥 Finalizados con resultado";
+    const st=getStartFlowStatus(route);
+    if(st.finishQrDeliveredAt)return "🏁 Finalizados";
+    if(st.startQrDeliveredAt||st.finishQrShownAt)return "🏃 En carrera";
+    return "⏳ Pendientes";
+}
+
+function step5RouteDropdownText(route){
+    if(!route)return "⏳ Pendientes";
+    return `${participantDisplay(route.participantId,route.routeId)} · ${step5RouteDropdownStatus(route)}`;
+}
+
 function updateOrganizerParticipantSelects(opts={}){
     ensureParticipantNamesStore();
     ensureSkippedRoutesStore();
     const startSel=document.getElementById("startFlowParticipantSelect");
     const finishSel=document.getElementById("finishFlowParticipantSelect");
 
-    if(startSel){
-        const current=startSel.value;
-        startSel.innerHTML="";
-        (state.routes||[]).forEach((r,i)=>{
+    const fillRouteSelect=sel=>{
+        if(!sel)return;
+        const current=sel.value;
+        sel.innerHTML="";
+        (state.routes||[]).forEach(route=>{
             const opt=document.createElement("option");
-            opt.value=r.participantId;
-            opt.textContent=participantDisplay(r.participantId,r.routeId)+(isRouteSkipped(r)?" · DESCARTADO":"");
-            if(isRouteSkipped(r))opt.dataset.discarded="1";
-            startSel.appendChild(opt);
+            opt.value=route.participantId;
+            opt.textContent=step5RouteDropdownText(route);
+            if(isRouteSkipped(route))opt.dataset.discarded="1";
+            sel.appendChild(opt);
         });
-        if(current && [...startSel.options].some(o=>o.value===current)) startSel.value=current;
-    }
+        if(current && [...sel.options].some(o=>o.value===current)) sel.value=current;
+    };
 
-    if(finishSel){
-        const current=finishSel.value;
-        finishSel.innerHTML="";
-        activeRoutes().forEach((r,i)=>{
-            const opt=document.createElement("option");
-            opt.value=r.participantId;
-            opt.textContent=participantDisplay(r.participantId,r.routeId);
-            finishSel.appendChild(opt);
-        });
-        if(current && [...finishSel.options].some(o=>o.value===current)) finishSel.value=current;
-    }
+    fillRouteSelect(startSel);
+    fillRouteSelect(finishSel);
 
     ensureParticipantNameUi();
     refreshParticipantNameInputs();
