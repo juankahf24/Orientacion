@@ -3683,183 +3683,65 @@ async function addPrintableParticipantQrItem(route,payload){
 }
 
 
-function pdfSafeText(value){
-    return String(value??"").replace(/<br\s*\/?\s*>/gi," · ").replace(/\s+/g," ").trim();
-}
+async function participantAccessWebQrPdfBlob(){
+    const accessUrl="https://juankahf24.github.io/participante/";
+    const jsPDF=await ensureJsPdf();
+    const qrDataUrl=await qrDataUrlForPrint(accessUrl,1400);
+    const eventName=participantPrintEventName();
+    const eventCode=String(state.eventId||"").trim()||"—";
 
-function pdfTextLines(doc,text,maxWidth){
-    const clean=pdfSafeText(text)||"—";
-    try{return doc.splitTextToSize(clean,maxWidth);}
-    catch(e){return [clean];}
-}
+    const pdf=new jsPDF({orientation:"portrait",unit:"mm",format:"a4",compress:true});
+    pdf.setFillColor(255,255,255);
+    pdf.rect(0,0,210,297,"F");
 
-async function printableQrPngDataUrl(dataUrl,size=1200){
-    const src=String(dataUrl||"");
-    if(src.startsWith("data:image/png"))return src;
-    return await new Promise((resolve,reject)=>{
-        const img=new Image();
-        img.onload=()=>{
-            try{
-                const canvas=document.createElement("canvas");
-                canvas.width=size;
-                canvas.height=size;
-                const ctx=canvas.getContext("2d");
-                ctx.fillStyle="#ffffff";
-                ctx.fillRect(0,0,size,size);
-                ctx.drawImage(img,0,0,size,size);
-                resolve(canvas.toDataURL("image/png"));
-            }catch(e){reject(e);}
-        };
-        img.onerror=()=>reject(new Error("No se pudo convertir el QR a PNG para PDF"));
-        img.src=src;
+    pdf.setDrawColor(0,0,0);
+    pdf.setLineWidth(0.7);
+    pdf.rect(10,10,190,277,"S");
+
+    pdf.setTextColor(0,0,0);
+    pdf.setFont("helvetica","bold");
+    pdf.setFontSize(19);
+    pdf.text("MILITOPO · ACCESO PARTICIPANTE",105,28,{align:"center"});
+
+    pdf.setFontSize(12);
+    pdf.setFont("helvetica","normal");
+    pdf.text("Escanea este QR para abrir la web del participante.",105,39,{align:"center"});
+
+    pdf.setFont("helvetica","bold");
+    pdf.setFontSize(11);
+    pdf.text("URL",105,52,{align:"center"});
+    pdf.setFont("helvetica","normal");
+    pdf.setFontSize(10);
+    pdf.text(accessUrl,105,59,{align:"center"});
+
+    pdf.setDrawColor(0,0,0);
+    pdf.setLineWidth(1.2);
+    pdf.rect(45,72,120,120,"S");
+    pdf.addImage(qrDataUrl,"PNG",52,79,106,106,undefined,"FAST");
+
+    pdf.setFont("helvetica","bold");
+    pdf.setFontSize(13);
+    pdf.text("ACCESO WEB PARTICIPANTE",105,207,{align:"center"});
+
+    pdf.setFont("helvetica","normal");
+    pdf.setFontSize(10);
+    const metaLines=[
+        `Ejercicio: ${eventName}`,
+        `Código evento: ${eventCode}`,
+        "Formato: A4 vertical · imprimir al 100 % · ajustado a márgenes",
+        "Archivo generado automáticamente dentro de la carpeta Participantes"
+    ];
+    let y=222;
+    metaLines.forEach(line=>{
+        pdf.text(String(line),105,y,{align:"center",maxWidth:172});
+        y+=8;
     });
-}
 
-function participantDisplayNameForPdf(route){
-    const pid=String(route?.participantId||"").toUpperCase();
-    const rid=String(route?.routeId||"").toUpperCase();
-    return rid?`${pid} · ${rid}`:pid;
-}
+    pdf.setFont("helvetica","bold");
+    pdf.setFontSize(9);
+    pdf.text("MILITOPO · ORIENTACIÓN",105,274,{align:"center"});
 
-function drawPdfLabelValue(doc,label,value,x,y,w,h,opts={}){
-    doc.setDrawColor(30,30,30);
-    doc.setLineWidth(0.25);
-    doc.rect(x,y,w,h);
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(opts.labelSize||6.5);
-    doc.text(String(label||"").toUpperCase(),x+2,y+3.2);
-    doc.setFont("helvetica",opts.boldValue?"bold":"normal");
-    doc.setFontSize(opts.valueSize||8);
-    const lines=pdfTextLines(doc,value,w-4).slice(0,opts.maxLines||3);
-    doc.text(lines,x+2,y+7);
-}
-
-async function printableParticipantsQrPdfBlob(items){
-    const jsPDF=await ensureJsPdf();
-    const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4",compress:true});
-    const pageW=210,pageH=297,margin=8,gap=6;
-    const cardW=(pageW-margin*2-gap)/2;
-    const cardH=(pageH-margin*2-gap)/2;
-    const eventName=participantPrintEventName();
-    const eventCode=String(state.eventId||"").trim()||"—";
-    const generatedAt=new Date().toLocaleString("es-ES");
-
-    for(let i=0;i<items.length;i++){
-        if(i>0 && i%4===0)doc.addPage("a4","portrait");
-        const pos=i%4;
-        const col=pos%2,row=Math.floor(pos/2);
-        const x=margin+col*(cardW+gap);
-        const y=margin+row*(cardH+gap);
-        const route=items[i].route||{};
-        const pid=String(route.participantId||"").toUpperCase();
-        const rid=String(route.routeId||"").toUpperCase();
-        const payload=String(items[i].payload||"");
-        const qr=await printableQrPngDataUrl(items[i].qrDataUrl,1200);
-
-        doc.setDrawColor(0,0,0);
-        doc.setLineWidth(0.8);
-        doc.rect(x,y,cardW,cardH);
-
-        doc.setFillColor(245,245,245);
-        doc.rect(x,y,cardW,17,"F");
-        doc.setFont("helvetica","bold");
-        doc.setFontSize(7.5);
-        doc.text("ID PARTICIPANTE",x+4,y+5.5);
-        doc.setFontSize(28);
-        doc.text(pid||"—",x+4,y+15.2);
-        if(rid){
-            doc.setFontSize(10);
-            doc.text(rid,x+cardW-4,y+13.8,{align:"right"});
-        }
-
-        const qrSize=62;
-        const qrX=x+(cardW-qrSize)/2;
-        const qrY=y+21;
-        doc.setLineWidth(0.55);
-        doc.rect(qrX-2,qrY-2,qrSize+4,qrSize+4);
-        doc.addImage(qr,"PNG",qrX,qrY,qrSize,qrSize,undefined,"FAST");
-
-        let infoY=qrY+qrSize+8;
-        drawPdfLabelValue(doc,"Ejercicio",eventName,x+4,infoY,cardW-8,12,{valueSize:7.2,maxLines:2});
-        infoY+=14;
-        drawPdfLabelValue(doc,"Evento",eventCode,x+4,infoY,(cardW-10)/2,10,{valueSize:7,maxLines:1,boldValue:true});
-        drawPdfLabelValue(doc,"Recorrido",rid||"—",x+5+(cardW-10)/2,infoY,(cardW-10)/2,10,{valueSize:7,maxLines:1,boldValue:true});
-        infoY+=12;
-        drawPdfLabelValue(doc,"Payload",payload,x+4,infoY,cardW-8,15,{valueSize:5.8,maxLines:3});
-        doc.setFont("helvetica","normal");
-        doc.setFontSize(5.5);
-        doc.text(`MILITOPO · ORIENTACIÓN · ${generatedAt}`,x+cardW/2,y+cardH-3,{align:"center"});
-    }
-    return doc.output("blob");
-}
-
-async function printableControlsQrPdfBlob(items){
-    const jsPDF=await ensureJsPdf();
-    const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4",compress:true});
-    const pageW=210,pageH=297,margin=9;
-    const eventName=participantPrintEventName();
-    const eventCode=String(state.eventId||"").trim()||"—";
-    const generatedAt=new Date().toLocaleString("es-ES");
-
-    for(let i=0;i<items.length;i++){
-        if(i>0)doc.addPage("a4","portrait");
-        const item=items[i]||{};
-        const point=item.point||{};
-        const id=String(point.id||"").toUpperCase();
-        const title=pointQrPrintTitle(point);
-        const type=String(point.type||"PUNTO");
-        const desc=String(point.desc||"Escanear este QR en el punto correspondiente.");
-        const utm=String(point.utm||"—");
-        const latLon=pointLatLonMeta(point);
-        const payload=String(item.payload||"");
-        const qr=await printableQrPngDataUrl(item.qrDataUrl,1400);
-
-        doc.setDrawColor(0,0,0);
-        doc.setLineWidth(0.35);
-        doc.rect(margin,margin,pageW-margin*2,pageH-margin*2);
-
-        doc.setFillColor(24,35,15);
-        doc.rect(margin,margin,pageW-margin*2,25,"F");
-        doc.setTextColor(255,255,255);
-        doc.setFont("helvetica","bold");
-        doc.setFontSize(8);
-        doc.text("ID DEL PUNTO",pageW/2,margin+6,{align:"center"});
-        doc.setFontSize(32);
-        doc.text(id||"—",pageW/2,margin+20,{align:"center"});
-        doc.setTextColor(0,0,0);
-
-        const qrSize=155;
-        const qrX=(pageW-qrSize)/2;
-        const qrY=margin+33;
-        doc.setLineWidth(0.9);
-        doc.rect(qrX-3,qrY-3,qrSize+6,qrSize+6);
-        doc.addImage(qr,"PNG",qrX,qrY,qrSize,qrSize,undefined,"FAST");
-
-        doc.setFont("helvetica","bold");
-        doc.setFontSize(24);
-        doc.text(pdfSafeText(title),pageW/2,qrY+qrSize+13,{align:"center"});
-        doc.setFont("helvetica","normal");
-        doc.setFontSize(8.5);
-        const descLines=pdfTextLines(doc,desc,pageW-margin*2-18).slice(0,2);
-        doc.text(descLines,pageW/2,qrY+qrSize+20,{align:"center"});
-
-        const boxY=qrY+qrSize+29;
-        const boxW=(pageW-margin*2-4)/2;
-        const left=margin+4;
-        const right=left+boxW+4;
-        drawPdfLabelValue(doc,"Ejercicio",eventName,left,boxY,boxW,13,{valueSize:7,maxLines:2});
-        drawPdfLabelValue(doc,"Evento",eventCode,right,boxY,boxW,13,{valueSize:7,maxLines:2,boldValue:true});
-        drawPdfLabelValue(doc,"Tipo",type,left,boxY+16,boxW,10,{valueSize:7.5,maxLines:1,boldValue:true});
-        drawPdfLabelValue(doc,"ID punto",id,right,boxY+16,boxW,10,{valueSize:7.5,maxLines:1,boldValue:true});
-        drawPdfLabelValue(doc,"UTM",utm,left,boxY+29,boxW,10,{valueSize:7,maxLines:1});
-        drawPdfLabelValue(doc,"Coordenadas",latLon,right,boxY+29,boxW,10,{valueSize:7,maxLines:1});
-        drawPdfLabelValue(doc,"Payload",payload,left,boxY+42,pageW-margin*2-8,13,{valueSize:6,maxLines:2});
-
-        doc.setFont("helvetica","normal");
-        doc.setFontSize(6);
-        doc.text(`MILITOPO · ORIENTACIÓN · ${generatedAt}`,pageW/2,pageH-margin-3,{align:"center"});
-    }
-    return doc.output("blob");
+    return pdf.output("blob");
 }
 
 
@@ -4545,7 +4427,7 @@ async function generateZip(verificationFromButton=null){ensureZipProgressUi();up
         }
         const skippedMaterialCount=typeof skippedRoutesList==="function"?skippedRoutesList().length:0;
 
-        const totalZipWork=(materialRoutes.length||0)*2+(Object.keys(state.points||{}).length||0)+8;
+        const totalZipWork=(materialRoutes.length||0)*2+(Object.keys(state.points||{}).length||0)+6;
         let zipWorkDone=0;
         updateZipProgress(zipWorkDone,totalZipWork,"Iniciando generación");
         await zipUiYield();
@@ -4631,11 +4513,17 @@ async function generateZip(verificationFromButton=null){ensureZipProgressUi();up
             await new Promise(r=>setTimeout(r,0));
         }
 
-        if(printableParticipantQrItems.length && typeof printableParticipantsQrPdfBlob==="function"){
-            updateZipProgress(++zipWorkDone,totalZipWork,"Generando PDF de QR participantes");
-            await zipUiYield();
-            setZipStatus("warn","Generando PDF imprimible de QR participantes...");
-            participantsFolder.file("IMPRIMIR_QR_PARTICIPANTES_A4.pdf",await printableParticipantsQrPdfBlob(printableParticipantQrItems));
+        if(printableParticipantQrItems.length && typeof printableAllParticipantQrsHtml==="function"){
+            participantsFolder.file("IMPRIMIR_QR_PARTICIPANTES_A4.html",printableAllParticipantQrsHtml(printableParticipantQrItems));
+        }
+
+        if(typeof participantAccessWebQrPdfBlob==="function"){
+            try{
+                participantsFolder.file("QR_ACCESO_WEB_PARTICIPANTE_A4.pdf",await participantAccessWebQrPdfBlob());
+            }catch(accessQrErr){
+                console.warn("PDF QR acceso web participante no generado",accessQrErr);
+                participantsFolder.file("QR_ACCESO_WEB_PARTICIPANTE_ERROR.txt",`No se pudo generar el PDF de acceso web participante. Motivo: ${accessQrErr&&accessQrErr.message?accessQrErr.message:accessQrErr}`);
+            }
         }
 
         const allPoints=Object.values(state.points||{})
@@ -4672,11 +4560,8 @@ async function generateZip(verificationFromButton=null){ensureZipProgressUi();up
             await new Promise(r=>setTimeout(r,0));
         }
 
-        if(printableControlQrItems.length && typeof printableControlsQrPdfBlob==="function"){
-            updateZipProgress(++zipWorkDone,totalZipWork,"Generando PDF de QR balizas");
-            await zipUiYield();
-            setZipStatus("warn","Generando PDF imprimible de QR balizas...");
-            controlsFolder.file("IMPRIMIR_TODAS_BALIZAS_A4.pdf",await printableControlsQrPdfBlob(printableControlQrItems));
+        if(printableControlQrItems.length && typeof printableAllControlQrsHtml==="function"){
+            controlsFolder.file("IMPRIMIR_TODAS_BALIZAS_A4.html",printableAllControlQrsHtml(printableControlQrItems));
         }
 
         updateZipProgress(totalZipWork-1,totalZipWork,"Comprimiendo ZIP");
