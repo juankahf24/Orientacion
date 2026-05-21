@@ -5705,7 +5705,27 @@ function renderResultsControl(){
 }
 
 function resultCompletedControlsCount(result){
-    return (result?.scans||[]).filter(s=>(s?.st||s?.status)==="correct").length;
+    const route=getRouteByParticipant(result?.participantId);
+    const expectedControls=(route?.points||[]).filter(id=>id!=="START"&&id!=="FINISH");
+    const missing=new Set((result?.missingControls||[]).map(x=>String(x||"").trim()).filter(Boolean));
+    if(expectedControls.length){
+        return Math.max(0, expectedControls.length - missing.size);
+    }
+    const unique=new Set((result?.scans||[])
+        .filter(s=>String(s?.st||s?.status||"").toLowerCase()==="correct")
+        .map(s=>String(s?.id||s?.controlId||"").trim())
+        .filter(id=>id&&id!=="START"&&id!=="FINISH"));
+    return unique.size;
+}
+
+function resultPendingControlsCount(result){
+    const route=getRouteByParticipant(result?.participantId);
+    const expectedControls=(route?.points||[]).filter(id=>id!=="START"&&id!=="FINISH");
+    if(expectedControls.length){
+        return Math.max(0, expectedControls.length-resultCompletedControlsCount(result));
+    }
+    if(Array.isArray(result?.missingControls))return result.missingControls.length;
+    return 0;
 }
 
 function sortedImportedResults(){
@@ -5719,8 +5739,9 @@ function sortedImportedResults(){
         if(am!==null&&bm===null)return -1;
         if(am===null&&bm!==null)return 1;
 
-        const ac=a.completed?0:1,bc=b.completed?0:1;
-        if(ac!==bc)return ac-bc;
+        const aPending=typeof resultPendingControlsCount==="function"?resultPendingControlsCount(a):(Array.isArray(a.missingControls)?a.missingControls.length:0);
+        const bPending=typeof resultPendingControlsCount==="function"?resultPendingControlsCount(b):(Array.isArray(b.missingControls)?b.missingControls.length:0);
+        if(aPending!==bPending)return aPending-bPending;
 
         return String(a.participantId).localeCompare(String(b.participantId),"es",{numeric:true});
     });
@@ -5776,7 +5797,6 @@ function renderClassificationTable(){
         return;
     }
 
-    let rank=0;
     box.innerHTML=`<div style="width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;">
     <table class="results-table" style="width:100%;min-width:860px;table-layout:fixed;border-collapse:separate;border-spacing:0;">
         <colgroup>
@@ -5802,13 +5822,12 @@ function renderClassificationTable(){
             <th style="white-space:normal;line-height:1.15;vertical-align:top;text-align:center;">Estado</th>
         </tr></thead>
         <tbody>${rows.map(r=>{
-            if(r.completed)rank++;
-            const displayRank=r.completed?rank:"--";
+            const displayRank=rows.indexOf(r)+1;
             const ms=resultMs(r);
             const time=ms!==null?formatDuration(ms):"--";
             const difficulty=routeDifficultyForResult(r);
             const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
-            const missingCount=Array.isArray(r.missingControls)?r.missingControls.length:0;
+            const missingCount=typeof resultPendingControlsCount==="function"?resultPendingControlsCount(r):(Array.isArray(r.missingControls)?r.missingControls.length:0);
             const cls=classificationRankClass(displayRank,r.completed);
             return `<tr class="${cls}">
                 <td style="vertical-align:top;white-space:normal;overflow-wrap:anywhere;">${displayRank}</td>
@@ -5943,7 +5962,7 @@ function classificationRowsForExport(){
         const ms=resultMs(r);
         const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
         rows.push([
-            r.completed?rank:"--",
+            idx+1,
             r.participantId||"",
             resultParticipantName(r)||"",
             r.routeId||"--",
@@ -6384,12 +6403,11 @@ renderClassificationTable=function(){
             <th>Estado</th>
         </tr></thead>
         <tbody>${rows.map(r=>{
-            if(r.completed)rank++;
-            const displayRank=r.completed?rank:"--";
+            const displayRank=rows.indexOf(r)+1;
             const ms=resultMs(r);
             const time=ms!==null?formatDuration(ms):"--";
             const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
-            const missingCount=Array.isArray(r.missingControls)?r.missingControls.length:0;
+            const missingCount=typeof resultPendingControlsCount==="function"?resultPendingControlsCount(r):(Array.isArray(r.missingControls)?r.missingControls.length:0);
             const cls=classificationRankClass(displayRank,r.completed);
             const estado=r.completed
                 ? `<div class="estado-v16"><span class="ico">✅</span><span class="txt">OK</span></div>`
@@ -6454,7 +6472,7 @@ classificationRowsForExport=function(){
         const ms=resultMs(r);
         const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>s.st==="correct"||s.status==="correct").length;
         rows.push([
-            r.completed?rank:"--",
+            idx+1,
             r.participantId||"",
             resultParticipantName(r)||"",
             r.routeId||"--",
@@ -6630,7 +6648,6 @@ downloadClassificationExcel=async function(){
             box.innerHTML=`<div class="status warn">Todavía no hay resultados importados.</div>`;
             return;
         }
-        let rank=0;
         box.innerHTML=`<div class="classification-scroll-v18" style="width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px;">
             <table class="results-table classification-table-v18" style="width:100%;min-width:980px;table-layout:fixed;border-collapse:separate;border-spacing:0;">
                 <colgroup>
@@ -6648,12 +6665,11 @@ downloadClassificationExcel=async function(){
                     <th style="white-space:normal;line-height:1.12;vertical-align:top;text-align:center;">Estado</th>
                 </tr></thead>
                 <tbody>${rows.map(r=>{
-                    if(r.completed)rank++;
-                    const displayRank=r.completed?rank:"--";
+                    const displayRank=rows.indexOf(r)+1;
                     const ms=typeof resultMs==="function"?resultMs(r):null;
                     const time=ms!==null&&typeof formatDuration==="function"?formatDuration(ms):"--";
                     const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>(s.st||s.status)==="correct").length;
-                    const missingCount=Array.isArray(r.missingControls)?r.missingControls.length:0;
+                    const missingCount=typeof resultPendingControlsCount==="function"?resultPendingControlsCount(r):(Array.isArray(r.missingControls)?r.missingControls.length:0);
                     const cls=typeof classificationRankClass==="function"?classificationRankClass(displayRank,r.completed):"";
                     const difficulty=routeDifficultyForResult(r);
                     return `<tr class="${cls}">
@@ -6710,21 +6726,19 @@ downloadClassificationExcel=async function(){
 
     window.classificationRowsForExport=function(){
         const rows=[["Puesto","Participante","Nombre","Recorrido","Dificultad","Tiempo","Controles completados","Controles pendientes","Estado"]];
-        let rank=0;
         const data=typeof sortedImportedResults==="function"?sortedImportedResults():[...(state.importedResults||[])];
-        data.forEach(r=>{
-            if(r.completed)rank++;
+        data.forEach((r,idx)=>{
             const ms=typeof resultMs==="function"?resultMs(r):null;
             const controls=typeof resultCompletedControlsCount==="function"?resultCompletedControlsCount(r):(r.scans||[]).filter(s=>(s.st||s.status)==="correct").length;
             rows.push([
-                r.completed?rank:"--",
+                idx+1,
                 r.participantId||"",
                 (typeof resultParticipantName==="function"?resultParticipantName(r):"")||"",
                 r.routeId||"--",
                 routeDifficultyForResult(r),
                 ms!==null&&typeof formatDuration==="function"?formatDuration(ms):"--",
                 controls,
-                (Array.isArray(r.missingControls)?r.missingControls.length:0),
+                typeof resultPendingControlsCount==="function"?resultPendingControlsCount(r):(Array.isArray(r.missingControls)?r.missingControls.length:0),
                 r.completed?"OK":"AVISO"
             ]);
         });
@@ -6795,4 +6809,68 @@ downloadClassificationExcel=async function(){
             if(typeof currentAppStep!=="undefined"&&currentAppStep===6&&typeof renderResultsControl==="function")renderResultsControl();
         },500);
     });
+})();
+
+
+/* MILITOPO clasificación por controles completados v54 */
+(function(){
+    function safeEsc(v){return (typeof escapeHtml==="function"?escapeHtml(v):String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])));}
+    window.resultCompletedControlsCount=function(result){
+        const route=typeof getRouteByParticipant==="function"?getRouteByParticipant(result?.participantId):null;
+        const expected=(route?.points||[]).filter(id=>id!=="START"&&id!=="FINISH");
+        const missing=new Set((result?.missingControls||[]).map(x=>String(x||"").trim()).filter(Boolean));
+        if(expected.length)return Math.max(0,expected.length-missing.size);
+        const unique=new Set((result?.scans||[]).filter(s=>String(s?.st||s?.status||"").toLowerCase()==="correct").map(s=>String(s?.id||s?.controlId||"").trim()).filter(id=>id&&id!=="START"&&id!=="FINISH"));
+        return unique.size;
+    };
+    window.resultPendingControlsCount=function(result){
+        const route=typeof getRouteByParticipant==="function"?getRouteByParticipant(result?.participantId):null;
+        const expected=(route?.points||[]).filter(id=>id!=="START"&&id!=="FINISH");
+        if(expected.length)return Math.max(0,expected.length-window.resultCompletedControlsCount(result));
+        return Array.isArray(result?.missingControls)?result.missingControls.length:0;
+    };
+    window.sortedImportedResults=function(){
+        const list=typeof activeImportedResults==="function"?activeImportedResults():[...(state.importedResults||[])];
+        return [...list].sort((a,b)=>{
+            const ac=window.resultCompletedControlsCount(a),bc=window.resultCompletedControlsCount(b);
+            if(ac!==bc)return bc-ac;
+            const am=typeof resultMs==="function"?resultMs(a):null,bm=typeof resultMs==="function"?resultMs(b):null;
+            if(am!==null&&bm!==null&&am!==bm)return am-bm;
+            if(am!==null&&bm===null)return -1;
+            if(am===null&&bm!==null)return 1;
+            const ap=window.resultPendingControlsCount(a),bp=window.resultPendingControlsCount(b);
+            if(ap!==bp)return ap-bp;
+            return String(a.participantId).localeCompare(String(b.participantId),"es",{numeric:true});
+        });
+    };
+    window.renderClassificationTable=function(){
+        const box=document.getElementById("classificationTable");
+        if(!box)return;
+        const rows=window.sortedImportedResults();
+        if(!rows.length){box.innerHTML=`<div class="status warn">Todavía no hay resultados importados.</div>`;return;}
+        box.innerHTML=`<div class="classification-scroll-v18" style="width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px;">
+            <table class="results-table classification-table-v18" style="width:100%;min-width:980px;table-layout:fixed;border-collapse:separate;border-spacing:0;">
+                <colgroup><col style="width:7%"><col style="width:12%"><col style="width:17%"><col style="width:10%"><col style="width:11%"><col style="width:11%"><col style="width:13%"><col style="width:13%"><col style="width:6%"></colgroup>
+                <thead><tr><th>Puesto</th><th>Participante</th><th>Nombre</th><th>Recorrido</th><th>Dificultad</th><th>Tiempo</th><th>Controles<br>completados</th><th>Controles<br>pendientes</th><th>Estado</th></tr></thead>
+                <tbody>${rows.map((r,i)=>{
+                    const displayRank=i+1;
+                    const ms=typeof resultMs==="function"?resultMs(r):null;
+                    const time=ms!==null&&typeof formatDuration==="function"?formatDuration(ms):"--";
+                    const controls=window.resultCompletedControlsCount(r);
+                    const missingCount=window.resultPendingControlsCount(r);
+                    const cls=typeof classificationRankClass==="function"?classificationRankClass(displayRank,r.completed):"";
+                    const difficulty=typeof routeDifficultyForResult==="function"?routeDifficultyForResult(r):"--";
+                    return `<tr class="${cls}"><td>${displayRank}</td><td>${safeEsc(r.participantId||"--")}</td><td>${safeEsc((typeof resultParticipantName==="function"?resultParticipantName(r):"")||"--")}</td><td>${safeEsc(r.routeId||"--")}</td><td style="font-weight:900;">${safeEsc(difficulty)}</td><td>${safeEsc(time)}</td><td style="text-align:center;">${controls}</td><td style="text-align:center;">${missingCount}</td><td style="text-align:center;"><span class="result-chip" style="display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.05;white-space:normal;padding:.35em .45em;"><span>${r.completed?"✅":"⚠️"}</span><span>${r.completed?"OK":"AVISO"}</span></span></td></tr>`;
+                }).join("")}</tbody>
+            </table>
+        </div>`;
+    };
+    window.classificationRowsForExport=function(){
+        const rows=[["Puesto","Participante","Nombre","Recorrido","Dificultad","Tiempo","Controles completados","Controles pendientes","Estado"]];
+        window.sortedImportedResults().forEach((r,i)=>{
+            const ms=typeof resultMs==="function"?resultMs(r):null;
+            rows.push([i+1,r.participantId||"",(typeof resultParticipantName==="function"?resultParticipantName(r):"")||"",r.routeId||"--",typeof routeDifficultyForResult==="function"?routeDifficultyForResult(r):"--",ms!==null&&typeof formatDuration==="function"?formatDuration(ms):"--",window.resultCompletedControlsCount(r),window.resultPendingControlsCount(r),r.completed?"OK":"AVISO"]);
+        });
+        return rows;
+    };
 })();
