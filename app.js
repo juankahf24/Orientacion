@@ -5703,7 +5703,7 @@ function drawCourse(){
         const x1=a.x+u.ux*g1,y1=a.y+u.uy*g1;
         const x2=b.x-u.ux*g2,y2=b.y-u.uy*g2;
         if(Math.hypot(x2-x1,y2-y1)>1){
-            segs.push('<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="#d000b8" stroke-width="'+lineW+'" stroke-linecap="round" vector-effect="non-scaling-stroke"/>');
+            segs.push('<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="#e45ac8" stroke-width="'+lineW+'" stroke-linecap="round" vector-effect="non-scaling-stroke"/>');
         }
     }
     lines.innerHTML=segs.join('');
@@ -5718,12 +5718,12 @@ function drawCourse(){
             const baseCX=x-u.ux*symbolR*1.55,baseCY=y-u.uy*symbolR*1.55;
             const p2x=baseCX+px*symbolR*.92,p2y=baseCY+py*symbolR*.92;
             const p3x=baseCX-px*symbolR*.92,p3y=baseCY-py*symbolR*.92;
-            return '<polygon points="'+tipX.toFixed(1)+','+tipY.toFixed(1)+' '+p2x.toFixed(1)+','+p2y.toFixed(1)+' '+p3x.toFixed(1)+','+p3y.toFixed(1)+'" fill="none" stroke="#d000b8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>';
+            return '<polygon points="'+tipX.toFixed(1)+','+tipY.toFixed(1)+' '+p2x.toFixed(1)+','+p2y.toFixed(1)+' '+p3x.toFixed(1)+','+p3y.toFixed(1)+'" fill="none" stroke="#e45ac8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>';
         }
         if(p.type==='FINISH'){
-            return '<circle cx="'+x+'" cy="'+y+'" r="'+(symbolR*0.58).toFixed(1)+'" fill="none" stroke="#d000b8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/><circle cx="'+x+'" cy="'+y+'" r="'+symbolR+'" fill="none" stroke="#d000b8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>';
+            return '<circle cx="'+x+'" cy="'+y+'" r="'+(symbolR*0.58).toFixed(1)+'" fill="none" stroke="#e45ac8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/><circle cx="'+x+'" cy="'+y+'" r="'+symbolR+'" fill="none" stroke="#e45ac8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>';
         }
-        return '<circle cx="'+x+'" cy="'+y+'" r="'+symbolR+'" fill="none" stroke="#d000b8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/><text x="'+(x+symbolR+4).toFixed(1)+'" y="'+(y-symbolR-2).toFixed(1)+'" fill="#d000b8" font-size="23" font-weight="900">'+p.markerOrder+'</text>';
+        return '<circle cx="'+x+'" cy="'+y+'" r="'+symbolR+'" fill="none" stroke="#e45ac8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/><text x="'+(x+symbolR+4).toFixed(1)+'" y="'+(y-symbolR-2).toFixed(1)+'" fill="#e45ac8" font-size="23" font-weight="900">'+p.markerOrder+'</text>';
     }).join('');
 }
 
