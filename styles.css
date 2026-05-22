@@ -997,9 +997,14 @@ th,td{
 .hero-title-block{
   display:flex;
   align-items:center;
+  justify-content:center;
+  text-align:center;
   min-height:100%;
+  width:100%;
 }
 .hero h1{
+  width:100%;
+  text-align:center;
   font-size:clamp(2rem,6.2vw,4.35rem);
   line-height:.98;
   letter-spacing:clamp(3px,.72vw,9px);
