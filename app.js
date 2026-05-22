@@ -627,6 +627,13 @@ async function prepareElevationsForRoutes(){
     const pts=Object.values(state.points).filter(p=>p.lat!==null&&p.lon!==null);
     const missing=pts.filter(pointNeedsElevation);
 
+    // Si las cotas ya están guardadas de una generación anterior, las reutilizamos.
+    // Esto evita que una regeneración marque falso aviso de "desnivel no real" solo porque no había nada nuevo que consultar.
+    if(!missing.length){
+        const source=state.elevationSource||"real";
+        return {realCount:pts.length,total:pts.length,source,existing:true};
+    }
+
     // Primero ponemos un respaldo inmediato para que nunca se quede sin desnivel.
     missing.forEach(p=>{p.elevation=fallbackElevation(p);});
 
@@ -647,7 +654,8 @@ async function prepareElevationsForRoutes(){
         }
     }
 
-    state.elevationSource = realCount ? "real" : "fallback";
+    // Si se han conseguido cotas reales nuevas, marcamos real. Si no, solo será fallback para los puntos recién calculados.
+    state.elevationSource = realCount ? "real" : (state.elevationSource||"fallback");
     saveState();
     return {realCount,total:pts.length,source:state.elevationSource};
 }
@@ -781,6 +789,181 @@ async function generateRoutes(silent=false){
         await routeSleep(450);
         hideRouteGenerationLoader();
     }
+    return true;
+}
+
+
+function routeEntryToPenaltyRoute(routeEntry){
+    const ids=(routeEntry&&Array.isArray(routeEntry.points))?routeEntry.points:[];
+    const controls=ids
+        .filter(id=>id!=="START"&&id!=="FINISH")
+        .map(id=>state.points&&state.points[id])
+        .filter(Boolean);
+    return {controls};
+}
+
+function calcRouteRepeatPenalty(orderedControls,originalControlIds){
+    const ids=orderedControls.map(c=>c.id);
+    const original=Array.isArray(originalControlIds)?originalControlIds:[];
+    if(!ids.length||!original.length)return 0;
+    let penalty=0;
+    if(ids.join("|")===original.join("|")) penalty+=4500;
+    const idSet=new Set(ids);
+    const originalSet=new Set(original);
+    let common=0;
+    originalSet.forEach(id=>{if(idSet.has(id))common++;});
+    const sameRatio=common/Math.max(1,Math.min(ids.length,original.length));
+    if(sameRatio>=1) penalty+=850;
+    else if(sameRatio>=0.85) penalty+=320;
+    else if(sameRatio>=0.70) penalty+=120;
+
+    for(let i=0;i<ids.length-1;i++){
+        const pair=ids[i]+"|"+ids[i+1];
+        const rev=ids[i+1]+"|"+ids[i];
+        for(let j=0;j<original.length-1;j++){
+            const op=original[j]+"|"+original[j+1];
+            if(pair===op) penalty+=120;
+            else if(rev===op) penalty+=28;
+        }
+    }
+    return penalty;
+}
+
+async function regenerateSingleRoute(routeIndex){
+    routeIndex=Number(routeIndex);
+    if(!Number.isInteger(routeIndex)||!state.routes||!state.routes[routeIndex]){
+        toast("Recorrido no encontrado");
+        return false;
+    }
+
+    syncConfigFromUi();
+    const v=validatePoints();
+    if(!v.ok){
+        const summary=document.getElementById("routeSummary");
+        if(summary){
+            summary.className="status err";
+            summary.textContent=`Faltan puntos. Debes tener salida, llegada y al menos ${state.controlsPerRoute} balizas completas.`;
+        }
+        toast("Faltan puntos obligatorios");
+        return false;
+    }
+
+    const oldRoute=state.routes[routeIndex];
+    const routeId=oldRoute.routeId||("R"+String(routeIndex+1).padStart(2,"0"));
+    const participantId=oldRoute.participantId||("P"+String(routeIndex+1).padStart(2,"0"));
+    const originalControlIds=(oldRoute.points||[]).filter(id=>id!=="START"&&id!=="FINISH");
+
+    showRouteGenerationLoader(`Regenerando solo ${routeId}...`,8);
+    await routeSleep(70);
+
+    let elevationInfo={source:state.elevationSource||"real",realCount:0,total:0,existing:true};
+    try{
+        elevationInfo=await Promise.race([
+            prepareElevationsForRoutes(),
+            new Promise(resolve=>setTimeout(()=>resolve({source:state.elevationSource||"real",timeout:true,existing:true,total:Object.values(state.points).filter(p=>p.lat!==null&&p.lon!==null).length}),9000))
+        ]);
+    }catch(e){
+        Object.values(state.points).filter(p=>p.lat!==null&&p.lon!==null).forEach(p=>{
+            if(pointNeedsElevation(p)) p.elevation=fallbackElevation(p);
+        });
+        elevationInfo={source:state.elevationSource||"fallback",error:true};
+    }
+
+    updateRouteGenerationLoader(`Buscando alternativa limpia para ${routeId}...`,24);
+    await routeSleep(70);
+
+    const controls=getAvailableControls();
+    const start=state.points.START;
+    const finish=state.points.FINISH;
+    const context=buildProfessionalRouteContext(start,controls,finish);
+
+    const existingRoutes=(state.routes||[])
+        .map((r,i)=>i===routeIndex?null:routeEntryToPenaltyRoute(r))
+        .filter(Boolean);
+    const existingMetrics=(state.metrics||[]).filter((m,i)=>i!==routeIndex&&m);
+    const usage={};
+    controls.forEach(c=>usage[c.id]=0);
+    existingRoutes.forEach(r=>(r.controls||[]).forEach(c=>{usage[c.id]=(usage[c.id]||0)+1;}));
+
+    const attempts=Math.max(1100,Math.min(3600,state.participantCount*150+controls.length*55));
+    const seedOffset=Math.floor(Math.random()*9999)+Date.now()%7919;
+    let best=null;
+
+    for(let a=0;a<attempts;a++){
+        if(a%70===0){
+            updateRouteGenerationLoader(`Probando alternativas ${Math.round((a/attempts)*100)}%...`,24+Math.round((a/attempts)*66));
+            await routeSleep(0);
+        }
+        const sampled=professionalSampleControls(context,state.controlsPerRoute,usage,routeIndex+seedOffset,a+seedOffset,existingRoutes);
+        const candidateControls=sampled.controls||sampled;
+        const direction=sampled.direction||1;
+        if(!candidateControls||candidateControls.length<state.controlsPerRoute)continue;
+
+        const ordered=orderControlsSmart(start,candidateControls,finish,a+seedOffset,context,direction);
+        const route=[start,...ordered,finish];
+        const metrics=calcRouteMetrics(route);
+        const quality=routeQualityDetails(route,context,direction);
+        const sequencePenalty=calcSequenceOverlapPenalty(ordered,existingRoutes);
+        const overlap=calcOverlapPenalty(ordered,existingRoutes);
+        const reusePenalty=ordered.reduce((sum,c)=>sum+Math.max(0,(usage[c.id]||0)-Math.max(1,state.maxControlReuse||1)+1),0);
+        const balancePenalty=calcDistanceBalancePenalty(metrics,existingMetrics);
+        const repeatPenalty=calcRouteRepeatPenalty(ordered,originalControlIds);
+
+        const score=
+            quality.total*18.0 +
+            sequencePenalty*9.5 +
+            balancePenalty*6.0 +
+            overlap*0.85 +
+            reusePenalty*3.2 +
+            repeatPenalty +
+            metrics.distanceKm*0.16 +
+            Math.random()*0.03;
+
+        if(!best||score<best.score)best={route,controls:ordered,metrics,quality,score,sequencePenalty,balancePenalty,direction,repeatPenalty};
+    }
+
+    if(!best){
+        hideRouteGenerationLoader();
+        toast(`No se pudo regenerar ${routeId}`);
+        return false;
+    }
+
+    best.metrics.quality=best.quality.label;
+    best.metrics.qualityCode=best.quality.code;
+    best.metrics.qualityScore=Number(best.quality.total.toFixed(2));
+    best.metrics.routeMode=context.mode==="loop"?"circular":"lineal";
+
+    state.routes[routeIndex]={participantId,routeId,points:best.route.map(p=>p.id)};
+    state.metrics[routeIndex]=best.metrics;
+    assignBalancedDifficulties(state.metrics);
+    state.routeQualitySummary=buildRouteQualitySummary(state.metrics);
+
+    const nextWarnings=(Array.isArray(state.routeWarnings)?state.routeWarnings:[])
+        .filter(w=>!String(w).startsWith(routeId+":") && !/Desnivel real no disponible/i.test(String(w)));
+    if(elevationInfo.source!=="real"){
+        nextWarnings.unshift("Desnivel real no disponible o tardó demasiado. Se usó respaldo de montaña para poder generar la prueba.");
+    }
+    if(best.quality.code==="forced"){
+        nextWarnings.push(`${routeId}: Recorrido forzado. Revisa distribución de balizas, reduce controles por recorrido o mueve salida/llegada.`);
+    }else if(best.quality.code==="acceptable"){
+        nextWarnings.push(`${routeId}: Recorrido aceptable. Trazado válido, pero no totalmente limpio.`);
+    }
+    if(best.sequencePenalty>=80){
+        nextWarnings.push(`${routeId}: se evitó en lo posible copiar tramos, pero la configuración obliga a compartir alguna secuencia.`);
+    }
+    state.routeWarnings=nextWarnings;
+
+    if(state.participantLogs)delete state.participantLogs[participantId];
+    if(state.skippedRoutes)delete state.skippedRoutes[participantId];
+
+    updateRouteGenerationLoader(`${routeId} regenerado correctamente`,100);
+    renderRoutes();
+    renderQrPreview();
+    updateParticipantSelect();
+    saveState();
+    await routeSleep(420);
+    hideRouteGenerationLoader();
+    toast(`${routeId} regenerado sin tocar los demás`);
     return true;
 }
 
@@ -1301,7 +1484,7 @@ function renderRoutes(){
             </div>
             <div class="status ${qClass}" style="margin-top:10px;">${escapeHtml(quality)}${m.routeMode?` · ${escapeHtml(m.routeMode)}`:""}</div>
             <div class="route-line">${r.points.map(escapeHtml).join(" → ")}</div>
-            <div class="btn-row"><button class="btn secondary" onclick="previewRoute(${i})">🗺️ VER EN PLANO</button></div>`;
+            <div class="btn-row"><button class="btn secondary" onclick="previewRoute(${i})">🗺️ VER EN PLANO</button><button class="btn" onclick="regenerateSingleRoute(${i})">🔁 REGENERAR SOLO ESTE</button></div>`;
         grid.appendChild(div);
     });
 }
