@@ -701,6 +701,11 @@ async function generateRoutes(silent=false){
     const controls=getAvailableControls();
     const start=state.points.START;
     const finish=state.points.FINISH;
+    const previousRoutes=(Array.isArray(state.routes)?state.routes:[])
+        .map(rt=>(rt.points||[]).filter(id=>id!=="START"&&id!=="FINISH"));
+    const isRegeneration=previousRoutes.some(ids=>ids.length);
+    state.routeGenerationCounter=(Number(state.routeGenerationCounter)||0)+1;
+    const runSalt=state.routeGenerationCounter*97+(Date.now()%100000);
     const routes=[];
     const usage={};
     const qualityWarnings=[];
@@ -715,12 +720,12 @@ async function generateRoutes(silent=false){
 
         let best=null;
         for(let a=0;a<attempts;a++){
-            const sampled=professionalSampleControls(context,state.controlsPerRoute,usage,r,a,routes);
+            const sampled=professionalSampleControls(context,state.controlsPerRoute,usage,r+runSalt,a+runSalt,routes);
             const candidateControls=sampled.controls||sampled;
             const direction=sampled.direction||1;
             if(!candidateControls||candidateControls.length<state.controlsPerRoute)continue;
 
-            const ordered=orderControlsSmart(start,candidateControls,finish,a,context,direction);
+            const ordered=orderControlsSmart(start,candidateControls,finish,a+runSalt,context,direction);
             const route=[start,...ordered,finish];
             const metrics=calcRouteMetrics(route);
             const quality=routeQualityDetails(route,context,direction);
@@ -728,6 +733,8 @@ async function generateRoutes(silent=false){
             const overlap=calcOverlapPenalty(ordered,routes);
             const reusePenalty=ordered.reduce((sum,c)=>sum+Math.max(0,(usage[c.id]||0)-Math.max(1,state.maxControlReuse||1)+1),0);
             const balancePenalty=calcDistanceBalancePenalty(metrics,routes.map(x=>x.metrics));
+            const previousPenalty=isRegeneration?calcPreviousGenerationPenalty(ordered,previousRoutes,r):0;
+            const variantPenalty=calcRouteVariantPenalty(ordered,runSalt,r);
 
             const score=
                 quality.total*18.0 +
@@ -735,8 +742,10 @@ async function generateRoutes(silent=false){
                 balancePenalty*6.0 +
                 overlap*0.85 +
                 reusePenalty*3.2 +
+                previousPenalty +
+                variantPenalty +
                 metrics.distanceKm*0.16 +
-                Math.random()*0.01;
+                Math.random()*0.18;
 
             if(!best||score<best.score)best={route,controls:ordered,metrics,quality,score,sequencePenalty,balancePenalty,direction};
         }
@@ -904,6 +913,67 @@ function professionalSampleControls(context,count,usage,routeIndex,attempt,exist
 function routeDirectionForCandidate(context,routeIndex,attempt){
     if(context.mode==="loop")return (routeIndex+Math.floor(attempt/11))%2===0?1:-1;
     return attempt%37===0?-1:1;
+}
+
+function hashRouteIds(ids,salt=0){
+    let h=(2166136261^(Number(salt)||0))>>>0;
+    ids.forEach(id=>{
+        const txt=String(id||"");
+        for(let i=0;i<txt.length;i++){
+            h^=txt.charCodeAt(i);
+            h=Math.imul(h,16777619)>>>0;
+        }
+        h^=1249;
+        h=Math.imul(h,16777619)>>>0;
+    });
+    return h>>>0;
+}
+
+function countAdjacentPairs(ids){
+    const pairs=new Set();
+    for(let i=0;i<ids.length-1;i++)pairs.add(ids[i]+">"+ids[i+1]);
+    return pairs;
+}
+
+function calcPreviousGenerationPenalty(ordered,previousRoutes,routeIndex=0){
+    const ids=(ordered||[]).map(p=>p.id);
+    if(!ids.length||!Array.isArray(previousRoutes)||!previousRoutes.length)return 0;
+    const currentSet=new Set(ids);
+    const currentPairs=countAdjacentPairs(ids);
+    let penalty=0;
+
+    previousRoutes.forEach((prev,idx)=>{
+        if(!Array.isArray(prev)||!prev.length)return;
+        const prevIds=prev.filter(id=>id!=="START"&&id!=="FINISH");
+        if(!prevIds.length)return;
+        const prevSet=new Set(prevIds);
+        const common=ids.reduce((sum,id)=>sum+(prevSet.has(id)?1:0),0);
+        const samePos=ids.reduce((sum,id,i)=>sum+(prevIds[i]===id?1:0),0);
+        const prevPairs=countAdjacentPairs(prevIds);
+        let samePairs=0;
+        currentPairs.forEach(pair=>{if(prevPairs.has(pair))samePairs++;});
+        const exact=ids.length===prevIds.length && ids.every((id,i)=>prevIds[i]===id);
+        const reversed=ids.length===prevIds.length && ids.every((id,i)=>prevIds[prevIds.length-1-i]===id);
+        const commonRatio=common/Math.max(1,ids.length);
+        const samePosRatio=samePos/Math.max(1,ids.length);
+        const pairRatio=samePairs/Math.max(1,ids.length-1);
+        let local=commonRatio*10+samePosRatio*24+pairRatio*18;
+        if(idx===routeIndex)local*=1.75;
+        if(exact)local+=90;
+        if(reversed)local+=34;
+        penalty=Math.max(penalty,local);
+    });
+
+    return penalty;
+}
+
+function calcRouteVariantPenalty(ordered,runSalt=0,routeIndex=0){
+    const ids=(ordered||[]).map(p=>p.id);
+    if(!ids.length)return 0;
+    // Pequeña variación controlada: no manda sobre la lógica del trazado, solo rompe empates
+    // para que cada pulsación de GENERAR / REGENERAR no repita el mismo óptimo.
+    const h=hashRouteIds(ids,Number(runSalt)+routeIndex*131);
+    return (h%1000)/1000*0.55;
 }
 
 function ensureUniqueControls(controls,context,count,usage,direction){
