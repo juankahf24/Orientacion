@@ -136,30 +136,60 @@ function syncPlanScaleSettingUi(){
 
 function confirmStep1(){rebuildPointsFromConfig(true);renderPointSelectors();renderPointsTable();updateParticipantSelect();updateRouteCountInfo();saveState();toast("Configuración guardada");goStep(2)}
 // AUTOFILL TEST POINTS JS START
+function getAutofillOrientationBaseCenter(){
+    // Prioridad 1: centro visible actual del mapa. Si el usuario ha buscado una zona,
+    // searchPlace() ya habrá movido el mapa ahí, por tanto se usa ese centro.
+    if(map && typeof map.getCenter === "function"){
+        const c = map.getCenter();
+        if(c && Number.isFinite(c.lat) && Number.isFinite(c.lng)){
+            return {lat:c.lat, lon:c.lng, label:"ZONA DEL MAPA"};
+        }
+    }
+
+    // Prioridad 2: si el cuadro de búsqueda contiene una UTM válida, úsala como centro.
+    const searchValue = (document.getElementById("searchBox")?.value || "").trim().toUpperCase();
+    if(searchValue && typeof utmToLatLon === "function"){
+        const ll = utmToLatLon(searchValue);
+        if(ll && Number.isFinite(ll.lat) && Number.isFinite(ll.lon)){
+            return {lat:ll.lat, lon:ll.lon, label:"ZONA BUSCADA"};
+        }
+    }
+
+    // Fallback neutro: solo si el mapa aún no está disponible.
+    return {lat:40.4168, lon:-3.7038, label:"ZONA ACTUAL"};
+}
+
 function autofillOrientationPoints() {
     syncConfigFromUi();
     rebuildPointsFromConfig(true);
 
-    const baseLat = 38.0416;
-    const baseLon = -1.2026;
+    const base = getAutofillOrientationBaseCenter();
+    const baseLat = base.lat;
+    const baseLon = base.lon;
+    const zoneLabel = base.label;
     const controls = Object.values(state.points).filter(p => p.type === "BALIZA");
 
     const start = state.points.START;
     const finish = state.points.FINISH;
 
+    const startLat = baseLat + 0.0017;
+    const startLon = baseLon - 0.0036;
+    const finishLat = baseLat - 0.0021;
+    const finishLon = baseLon + 0.0038;
+
     Object.assign(start, {
-        lat: 38.0433,
-        lon: -1.2062,
-        utm: latLonToUtm(38.0433, -1.2062),
-        desc: "SALIDA · SANTA BÁRBARA",
+        lat: startLat,
+        lon: startLon,
+        utm: latLonToUtm(startLat, startLon),
+        desc: `SALIDA · ${zoneLabel}`,
         elevation: null
     });
 
     Object.assign(finish, {
-        lat: 38.0395,
-        lon: -1.1988,
-        utm: latLonToUtm(38.0395, -1.1988),
-        desc: "LLEGADA · SANTA BÁRBARA",
+        lat: finishLat,
+        lon: finishLon,
+        utm: latLonToUtm(finishLat, finishLon),
+        desc: `LLEGADA · ${zoneLabel}`,
         elevation: null
     });
 
@@ -194,7 +224,7 @@ function autofillOrientationPoints() {
         p.lat = g.lat;
         p.lon = g.lon;
         p.utm = latLonToUtm(g.lat, g.lon);
-        p.desc = `CONTROL ${p.id} · SANTA BÁRBARA`;
+        p.desc = `CONTROL ${p.id} · ${zoneLabel}`;
         p.elevation = null;
     });
 
@@ -217,8 +247,8 @@ function autofillOrientationPoints() {
     },180);
 
     saveState();
-    toast(`Puntos rellenados: salida, llegada y ${controls.length} balizas`);
-    if(typeof setRestoreStatus==="function")setRestoreStatus(`✅ Puntos rellenados y mapa centrado (${controls.length} balizas)`,"ok");
+    toast(`Puntos rellenados en la zona actual: salida, llegada y ${controls.length} balizas`);
+    if(typeof setRestoreStatus==="function")setRestoreStatus(`✅ Puntos rellenados en la zona actual del mapa (${controls.length} balizas)`,"ok");
 }
 
 function clearAllOrientationPoints() {
@@ -5703,7 +5733,7 @@ function drawCourse(){
         const x1=a.x+u.ux*g1,y1=a.y+u.uy*g1;
         const x2=b.x-u.ux*g2,y2=b.y-u.uy*g2;
         if(Math.hypot(x2-x1,y2-y1)>1){
-            segs.push('<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="#e45ac8" stroke-width="'+lineW+'" stroke-linecap="round" vector-effect="non-scaling-stroke"/>');
+            segs.push('<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="#d000b8" stroke-width="'+lineW+'" stroke-linecap="round" vector-effect="non-scaling-stroke"/>');
         }
     }
     lines.innerHTML=segs.join('');
@@ -5718,12 +5748,12 @@ function drawCourse(){
             const baseCX=x-u.ux*symbolR*1.55,baseCY=y-u.uy*symbolR*1.55;
             const p2x=baseCX+px*symbolR*.92,p2y=baseCY+py*symbolR*.92;
             const p3x=baseCX-px*symbolR*.92,p3y=baseCY-py*symbolR*.92;
-            return '<polygon points="'+tipX.toFixed(1)+','+tipY.toFixed(1)+' '+p2x.toFixed(1)+','+p2y.toFixed(1)+' '+p3x.toFixed(1)+','+p3y.toFixed(1)+'" fill="none" stroke="#e45ac8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>';
+            return '<polygon points="'+tipX.toFixed(1)+','+tipY.toFixed(1)+' '+p2x.toFixed(1)+','+p2y.toFixed(1)+' '+p3x.toFixed(1)+','+p3y.toFixed(1)+'" fill="none" stroke="#d000b8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>';
         }
         if(p.type==='FINISH'){
-            return '<circle cx="'+x+'" cy="'+y+'" r="'+(symbolR*0.58).toFixed(1)+'" fill="none" stroke="#e45ac8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/><circle cx="'+x+'" cy="'+y+'" r="'+symbolR+'" fill="none" stroke="#e45ac8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>';
+            return '<circle cx="'+x+'" cy="'+y+'" r="'+(symbolR*0.58).toFixed(1)+'" fill="none" stroke="#d000b8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/><circle cx="'+x+'" cy="'+y+'" r="'+symbolR+'" fill="none" stroke="#d000b8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>';
         }
-        return '<circle cx="'+x+'" cy="'+y+'" r="'+symbolR+'" fill="none" stroke="#e45ac8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/><text x="'+(x+symbolR+4).toFixed(1)+'" y="'+(y-symbolR-2).toFixed(1)+'" fill="#e45ac8" font-size="23" font-weight="900">'+p.markerOrder+'</text>';
+        return '<circle cx="'+x+'" cy="'+y+'" r="'+symbolR+'" fill="none" stroke="#d000b8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/><text x="'+(x+symbolR+4).toFixed(1)+'" y="'+(y-symbolR-2).toFixed(1)+'" fill="#d000b8" font-size="23" font-weight="900">'+p.markerOrder+'</text>';
     }).join('');
 }
 
