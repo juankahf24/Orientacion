@@ -1,5 +1,5 @@
-/* MILITOPO · cache offline seguro v66 */
-const MILITOPO_CACHE = "militopo-root-offline-v66";
+/* MILITOPO · cache offline seguro v67 */
+const MILITOPO_CACHE = "militopo-root-offline-v67";
 const CORE_ASSETS = [
   "./",
   "./index.html",

@@ -5673,7 +5673,7 @@ function participantPlanHtml(route){
 @page{size:A4 landscape;margin:0}
 html,body{margin:0;padding:0;background:#eee;font-family:Arial,Helvetica,sans-serif;color:#111}
 .toolbar{position:sticky;top:0;z-index:1000;background:rgba(255,255,255,.94);padding:8px;border-bottom:1px solid #ddd}
-.toolbar button{border:0;border-radius:999px;background:#d000b8;color:white;font-weight:900;padding:10px 16px}
+.toolbar button{border:0;border-radius:999px;background:#e45ac8;color:white;font-weight:900;padding:10px 16px}
 .sheet{width:297mm;height:210mm;background:#ebe3c8;margin:0 auto;position:relative;overflow:hidden;box-sizing:border-box;border:0;padding:5mm}
 .header{height:18mm;background:#3f4a2c;color:#efe6c8;display:grid;grid-template-columns:20mm 1fr 54mm;align-items:center;gap:4mm;padding:0 7mm;box-sizing:border-box}
 .title{text-align:center}.title h1{margin:0;font-size:28px;letter-spacing:5px;font-weight:900}.title h2{margin:4px 0 0;font-size:18px;letter-spacing:3px;font-weight:900}
@@ -5715,8 +5715,8 @@ function drawCourse(){
     // Símbolos uniformes y pequeños: el punto real queda en el centro del círculo/meta,
     // y en el vértice del triángulo de salida.
     const symbolR=10;
-    const strokeW=2.4;
-    const lineW=2.2;
+    const strokeW=1.9;
+    const lineW=1.7;
     const cutGap=symbolR+2.2;
 
     function unit(a,b){
@@ -5733,7 +5733,7 @@ function drawCourse(){
         const x1=a.x+u.ux*g1,y1=a.y+u.uy*g1;
         const x2=b.x-u.ux*g2,y2=b.y-u.uy*g2;
         if(Math.hypot(x2-x1,y2-y1)>1){
-            segs.push('<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="#d000b8" stroke-width="'+lineW+'" stroke-linecap="round" vector-effect="non-scaling-stroke"/>');
+            segs.push('<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="#e45ac8" stroke-width="'+lineW+'" stroke-linecap="round" vector-effect="non-scaling-stroke"/>');
         }
     }
     lines.innerHTML=segs.join('');
@@ -5748,12 +5748,12 @@ function drawCourse(){
             const baseCX=x-u.ux*symbolR*1.55,baseCY=y-u.uy*symbolR*1.55;
             const p2x=baseCX+px*symbolR*.92,p2y=baseCY+py*symbolR*.92;
             const p3x=baseCX-px*symbolR*.92,p3y=baseCY-py*symbolR*.92;
-            return '<polygon points="'+tipX.toFixed(1)+','+tipY.toFixed(1)+' '+p2x.toFixed(1)+','+p2y.toFixed(1)+' '+p3x.toFixed(1)+','+p3y.toFixed(1)+'" fill="none" stroke="#d000b8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>';
+            return '<polygon points="'+tipX.toFixed(1)+','+tipY.toFixed(1)+' '+p2x.toFixed(1)+','+p2y.toFixed(1)+' '+p3x.toFixed(1)+','+p3y.toFixed(1)+'" fill="none" stroke="#e45ac8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>';
         }
         if(p.type==='FINISH'){
-            return '<circle cx="'+x+'" cy="'+y+'" r="'+(symbolR*0.58).toFixed(1)+'" fill="none" stroke="#d000b8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/><circle cx="'+x+'" cy="'+y+'" r="'+symbolR+'" fill="none" stroke="#d000b8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>';
+            return '<circle cx="'+x+'" cy="'+y+'" r="'+(symbolR*0.58).toFixed(1)+'" fill="none" stroke="#e45ac8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/><circle cx="'+x+'" cy="'+y+'" r="'+symbolR+'" fill="none" stroke="#e45ac8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/>';
         }
-        return '<circle cx="'+x+'" cy="'+y+'" r="'+symbolR+'" fill="none" stroke="#d000b8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/><text x="'+(x+symbolR+4).toFixed(1)+'" y="'+(y-symbolR-2).toFixed(1)+'" fill="#d000b8" font-size="23" font-weight="900">'+p.markerOrder+'</text>';
+        return '<circle cx="'+x+'" cy="'+y+'" r="'+symbolR+'" fill="none" stroke="#e45ac8" stroke-width="'+strokeW+'" vector-effect="non-scaling-stroke"/><text x="'+(x+symbolR+4).toFixed(1)+'" y="'+(y-symbolR-2).toFixed(1)+'" fill="#e45ac8" font-size="23" font-weight="900">'+p.markerOrder+'</text>';
     }).join('');
 }
 
